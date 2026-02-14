@@ -38,10 +38,29 @@ struct equal_t
 {
 };
 
-struct number_t
+class object_t;
+
+struct decorated_t
 {
-    string name;
-    int value {};
+    shared_ptr<const object_t> inner;
+};
+
+struct pushable_t : decorated_t
+{
+};
+bool is_pushable(const pushable_t &)
+{
+    return true;
+}
+
+template <typename T>
+bool is_pushable(const T&)
+{
+    return false;
+}
+
+struct blocking_t : decorated_t
+{
 };
 
 char glyph(const empty_t&)
@@ -64,10 +83,12 @@ char glyph(const equal_t&)
     return '=';
 }
 
-char glyph(const number_t& x)
+char glyph(const int& x)
 {
-    return static_cast<char>('0' + x.value);
+    return static_cast<char>('0' + x);
 }
+
+char glyph(const decorated_t& x);
 
 template <typename T>
 bool is_empty(const T&)
@@ -80,6 +101,8 @@ bool is_empty(const empty_t&)
     return true;
 }
 
+//bool is_empty(const decorated_t& x);
+
 template <typename T>
 bool is_player(const T&)
 {
@@ -91,16 +114,11 @@ bool is_player(const player_t&)
     return true;
 }
 
-template <typename T>
-bool is_pushable(const T&)
-{
-    return false;
-}
+//bool is_player(const decorated_t& x);
 
-bool is_pushable(const number_t&)
-{
-    return true;
-}
+
+// bool is_pushable(const pushable_t& x);
+// bool is_pushable(const decorated_t& x);
 
 template <typename T>
 bool blocks_movement(const T&)
@@ -108,15 +126,7 @@ bool blocks_movement(const T&)
     return false;
 }
 
-bool blocks_movement(const plus_t&)
-{
-    return true;
-}
-
-bool blocks_movement(const equal_t&)
-{
-    return true;
-}
+bool blocks_movement(const decorated_t& x);
 
 template <typename T>
 int number_value(const T&)
@@ -124,10 +134,12 @@ int number_value(const T&)
     return -1;
 }
 
-int number_value(const number_t& x)
+int number_value(const int& x)
 {
-    return x.value;
+    return x;
 }
+
+int number_value(const decorated_t& x);
 
 class object_t
 {
@@ -226,29 +238,51 @@ private:
     shared_ptr<const concept_t> self_;
 };
 
-template <typename T>
-using history_t = vector<T>;
-
-template <typename T>
-void commit(history_t<T>& x)
+char glyph(const decorated_t& x)
 {
-    assert(!x.empty());
-    x.push_back(x.back());
+    return x.inner->glyph();
 }
 
-template <typename T>
-void undo(history_t<T>& x)
+bool is_empty(const decorated_t& x)
 {
-    assert(!x.empty());
-    x.pop_back();
+    return x.inner->is_empty();
 }
 
-template <typename T>
-T& current(history_t<T>& x)
+bool is_player(const decorated_t& x)
 {
-    assert(!x.empty());
-    return x.back();
+    return x.inner->is_player();
 }
+
+bool is_pushable(const decorated_t& x)
+{
+    return x.inner->is_pushable();
+}
+
+bool blocks_movement(const decorated_t& x)
+{
+    return x.inner->blocks_movement();
+}
+
+bool blocks_movement(const blocking_t&)
+{
+    return true;
+}
+
+int number_value(const decorated_t& x)
+{
+    return x.inner->number_value();
+}
+
+object_t make_pushable(object_t x)
+{
+    return object_t(pushable_t {{make_shared<object_t>(move(x))}});
+}
+
+object_t make_blocking(object_t x)
+{
+    return object_t(blocking_t {{make_shared<object_t>(move(x))}});
+}
+
 
 struct world_t
 {
@@ -256,6 +290,27 @@ struct world_t
     int undos_left {6};
     vector<vector<object_t>> grid;
 };
+
+
+using history_t = vector<world_t>;
+
+void commit(history_t& x)
+{
+    assert(!x.empty());
+    x.push_back(x.back());
+}
+
+void undo(history_t& x)
+{
+    assert(!x.empty());
+    x.pop_back();
+}
+
+world_t& current(history_t& x)
+{
+    assert(!x.empty());
+    return x.back();
+}
 
 int grid_height(const world_t& w)
 {
@@ -296,16 +351,6 @@ point_t rhs_slot()
 point_t result_slot()
 {
     return {5, 1};
-}
-
-point_t plus_cell()
-{
-    return {2, 1};
-}
-
-point_t equal_cell()
-{
-    return {4, 1};
 }
 
 point_t find_player(const world_t& w)
@@ -382,7 +427,7 @@ bool try_move_player(world_t& w, int dx, int dy)
     return true;
 }
 
-bool world_commit(history_t<world_t>& h)
+bool world_commit(history_t& h)
 {
     auto& w = current(h);
     if (w.commits_left <= 0) return false;
@@ -392,7 +437,7 @@ bool world_commit(history_t<world_t>& h)
     return true;
 }
 
-bool world_undo(history_t<world_t>& h)
+bool world_undo(history_t& h)
 {
     auto& w = current(h);
     if (w.undos_left <= 0) return false;
@@ -498,23 +543,23 @@ world_t make_world()
 
     world_t w;
     w.grid.assign(static_cast<size_t>(height),
-                  vector<object_t>(static_cast<size_t>(width), object_t(empty_t {})));
+                  vector<object_t>(static_cast<size_t>(width), empty_t {}));
 
     place(w, {0, 6}, player_t {});
-    place(w, plus_cell(), plus_t {});
-    place(w, equal_cell(), equal_t {});
+    place(w, {2, 1}, make_blocking(plus_t {}));
+    place(w, {5, 1}, make_blocking(equal_t {}));
 
-    place(w, {4, 4}, number_t {"one", 1});
-    place(w, {7, 5}, number_t {"two", 2});
-    place(w, {6, 3}, number_t {"three", 3});
-    place(w, {2, 5}, number_t {"four", 4});
+    place(w, {4, 4}, make_pushable(1));
+    place(w, {7, 5}, make_pushable(2));
+    place(w, {6, 3}, make_pushable(3));
+    place(w, {2, 5}, make_pushable(4));
 
     return w;
 }
 
 int main()
 {
-    history_t<world_t> h {make_world()};
+    history_t h {make_world()};
 
     cout << "Time Grid\n";
     show_help();
