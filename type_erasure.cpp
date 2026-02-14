@@ -3,12 +3,228 @@
 #include <cassert>
 #include <cctype>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 #include <termios.h>
 #include <unistd.h>
 
 using namespace std;
+
+struct point_t
+{
+    int x {};
+    int y {};
+};
+
+bool operator==(const point_t& a, const point_t& b)
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+struct empty_t
+{
+};
+
+struct player_t
+{
+};
+
+struct plus_t
+{
+};
+
+struct equal_t
+{
+};
+
+struct number_t
+{
+    string name;
+    int value {};
+};
+
+char glyph(const empty_t&)
+{
+    return '.';
+}
+
+char glyph(const player_t&)
+{
+    return '@';
+}
+
+char glyph(const plus_t&)
+{
+    return '+';
+}
+
+char glyph(const equal_t&)
+{
+    return '=';
+}
+
+char glyph(const number_t& x)
+{
+    return static_cast<char>('0' + x.value);
+}
+
+template <typename T>
+bool is_empty(const T&)
+{
+    return false;
+}
+
+bool is_empty(const empty_t&)
+{
+    return true;
+}
+
+template <typename T>
+bool is_player(const T&)
+{
+    return false;
+}
+
+bool is_player(const player_t&)
+{
+    return true;
+}
+
+template <typename T>
+bool is_pushable(const T&)
+{
+    return false;
+}
+
+bool is_pushable(const number_t&)
+{
+    return true;
+}
+
+template <typename T>
+bool blocks_movement(const T&)
+{
+    return false;
+}
+
+bool blocks_movement(const plus_t&)
+{
+    return true;
+}
+
+bool blocks_movement(const equal_t&)
+{
+    return true;
+}
+
+template <typename T>
+int number_value(const T&)
+{
+    return -1;
+}
+
+int number_value(const number_t& x)
+{
+    return x.value;
+}
+
+class object_t
+{
+public:
+    template <typename T>
+    object_t(T x) : self_(make_shared<model<T>>(move(x)))
+    {
+    }
+
+    object_t() : object_t(empty_t {})
+    {
+    }
+
+    char glyph() const
+    {
+        return self_->glyph_();
+    }
+
+    bool is_empty() const
+    {
+        return self_->is_empty_();
+    }
+
+    bool is_player() const
+    {
+        return self_->is_player_();
+    }
+
+    bool is_pushable() const
+    {
+        return self_->is_pushable_();
+    }
+
+    bool blocks_movement() const
+    {
+        return self_->blocks_movement_();
+    }
+
+    int number_value() const
+    {
+        return self_->number_value_();
+    }
+
+private:
+    struct concept_t
+    {
+        virtual ~concept_t() = default;
+        virtual char glyph_() const = 0;
+        virtual bool is_empty_() const = 0;
+        virtual bool is_player_() const = 0;
+        virtual bool is_pushable_() const = 0;
+        virtual bool blocks_movement_() const = 0;
+        virtual int number_value_() const = 0;
+    };
+
+    template <typename T>
+    struct model : concept_t
+    {
+        explicit model(T x) : data_(move(x))
+        {
+        }
+
+        char glyph_() const override
+        {
+            return ::glyph(data_);
+        }
+
+        bool is_empty_() const override
+        {
+            return ::is_empty(data_);
+        }
+
+        bool is_player_() const override
+        {
+            return ::is_player(data_);
+        }
+
+        bool is_pushable_() const override
+        {
+            return ::is_pushable(data_);
+        }
+
+        bool blocks_movement_() const override
+        {
+            return ::blocks_movement(data_);
+        }
+
+        int number_value_() const override
+        {
+            return ::number_value(data_);
+        }
+
+        T data_;
+    };
+
+    shared_ptr<const concept_t> self_;
+};
 
 template <typename T>
 using history_t = vector<T>;
@@ -34,37 +250,37 @@ T& current(history_t<T>& x)
     return x.back();
 }
 
-struct point_t
-{
-    int x {};
-    int y {};
-};
-
-bool operator==(const point_t& a, const point_t& b)
-{
-    return a.x == b.x && a.y == b.y;
-}
-
-struct temporal_object_t
-{
-    string name;
-    int value {};
-    point_t pos {};
-};
-
 struct world_t
 {
-    int width {9};
-    int height {7};
-    point_t player_pos {0, 6};
     int commits_left {6};
     int undos_left {6};
-    vector<temporal_object_t> objects;
+    vector<vector<object_t>> grid;
 };
+
+int grid_height(const world_t& w)
+{
+    return static_cast<int>(w.grid.size());
+}
+
+int grid_width(const world_t& w)
+{
+    if (w.grid.empty()) return 0;
+    return static_cast<int>(w.grid[0].size());
+}
 
 bool in_bounds(const world_t& w, const point_t& p)
 {
-    return p.x >= 0 && p.y >= 0 && p.x < w.width && p.y < w.height;
+    return p.x >= 0 && p.y >= 0 && p.x < grid_width(w) && p.y < grid_height(w);
+}
+
+object_t& cell(world_t& w, const point_t& p)
+{
+    return w.grid[p.y][p.x];
+}
+
+const object_t& cell(const world_t& w, const point_t& p)
+{
+    return w.grid[p.y][p.x];
 }
 
 point_t lhs_slot()
@@ -92,44 +308,29 @@ point_t equal_cell()
     return {4, 1};
 }
 
-bool blocked_static_cell(const point_t& p)
+point_t find_player(const world_t& w)
 {
-    return p == plus_cell() || p == equal_cell();
-}
-
-int object_at(const world_t& w, const point_t& p)
-{
-    for (size_t i = 0; i < w.objects.size(); ++i)
-        if (w.objects[i].pos == p) return static_cast<int>(i);
-    return -1;
+    for (int y = 0; y < grid_height(w); ++y)
+    {
+        for (int x = 0; x < grid_width(w); ++x)
+        {
+            point_t p {x, y};
+            if (cell(w, p).is_player()) return p;
+        }
+    }
+    return {-1, -1};
 }
 
 void draw_world(const world_t& w)
 {
-    cout << "\nWorld commits/undos: " << w.commits_left << "/" << w.undos_left << "\n";
-    for (size_t i = 0; i < w.objects.size(); ++i)
-    {
-        const auto& o = w.objects[i];
-        cout << "Object " << i << " [" << o.name << "] at (" << o.pos.x << "," << o.pos.y << ")\n";
-    }
-    cout << "\n";
+    cout << "\nWorld commits/undos: " << w.commits_left << "/" << w.undos_left << "\n\n";
 
-    for (int y = 0; y < w.height; ++y)
+    for (int y = 0; y < grid_height(w); ++y)
     {
-        for (int x = 0; x < w.width; ++x)
+        for (int x = 0; x < grid_width(w); ++x)
         {
             point_t p {x, y};
-            char c = '.';
-
-            if (p == plus_cell()) c = '+';
-            if (p == equal_cell()) c = '=';
-
-            int idx = object_at(w, p);
-            if (idx >= 0) c = static_cast<char>('0' + w.objects[idx].value);
-
-            if (p == w.player_pos) c = '@';
-
-            cout << c << ' ';
+            cout << cell(w, p).glyph() << ' ';
         }
         cout << '\n';
     }
@@ -141,39 +342,43 @@ void draw_world(const world_t& w)
 
 bool solved_equation(const world_t& w)
 {
-    int lhs_i = object_at(w, lhs_slot());
-    int rhs_i = object_at(w, rhs_slot());
-    int result_i = object_at(w, result_slot());
+    int lhs = cell(w, lhs_slot()).number_value();
+    int rhs = cell(w, rhs_slot()).number_value();
+    int result = cell(w, result_slot()).number_value();
 
-    if (lhs_i < 0 || rhs_i < 0 || result_i < 0) return false;
-
-    int lhs = w.objects[lhs_i].value;
-    int rhs = w.objects[rhs_i].value;
-    int result = w.objects[result_i].value;
+    if (lhs < 0 || rhs < 0 || result < 0) return false;
     return lhs + rhs == result;
 }
 
 bool try_move_player(world_t& w, int dx, int dy)
 {
-    point_t next {w.player_pos.x + dx, w.player_pos.y + dy};
-    if (!in_bounds(w, next)) return false;
-    if (blocked_static_cell(next)) return false;
+    point_t player = find_player(w);
+    if (player.x < 0) return false;
 
-    int object_index = object_at(w, next);
-    if (object_index < 0)
+    point_t next {player.x + dx, player.y + dy};
+    if (!in_bounds(w, next)) return false;
+
+    const object_t next_object = cell(w, next);
+    if (next_object.blocks_movement()) return false;
+
+    if (next_object.is_empty())
     {
-        w.player_pos = next;
+        cell(w, player) = object_t(empty_t {});
+        cell(w, next) = object_t(player_t {});
         return true;
     }
 
+    if (!next_object.is_pushable()) return false;
+
     point_t pushed {next.x + dx, next.y + dy};
     if (!in_bounds(w, pushed)) return false;
-    if (blocked_static_cell(pushed)) return false;
-    if (object_at(w, pushed) >= 0) return false;
-    if (pushed == w.player_pos) return false;
 
-    w.objects[object_index].pos = pushed;
-    w.player_pos = next;
+    const object_t pushed_object = cell(w, pushed);
+    if (!pushed_object.is_empty()) return false;
+
+    cell(w, pushed) = next_object;
+    cell(w, next) = object_t(player_t {});
+    cell(w, player) = object_t(empty_t {});
     return true;
 }
 
@@ -281,16 +486,29 @@ string read_command_raw(char first)
     }
 }
 
+void place(world_t& w, const point_t& p, object_t x)
+{
+    cell(w, p) = move(x);
+}
+
 world_t make_world()
 {
+    constexpr int width = 9;
+    constexpr int height = 7;
+
     world_t w;
-    w.player_pos = {0, 6};
-    w.objects = {
-        {"one", 1, {4, 4}},
-        {"two", 2, {7, 5}},
-        {"three", 3, {6, 3}},
-        {"four", 4, {2, 5}},
-    };
+    w.grid.assign(static_cast<size_t>(height),
+                  vector<object_t>(static_cast<size_t>(width), object_t(empty_t {})));
+
+    place(w, {0, 6}, player_t {});
+    place(w, plus_cell(), plus_t {});
+    place(w, equal_cell(), equal_t {});
+
+    place(w, {4, 4}, number_t {"one", 1});
+    place(w, {7, 5}, number_t {"two", 2});
+    place(w, {6, 3}, number_t {"three", 3});
+    place(w, {2, 5}, number_t {"four", 4});
+
     return w;
 }
 
@@ -341,7 +559,7 @@ int main()
     string line;
     while (true)
     {
-        auto& w = current(h);
+        const auto& w = current(h);
         draw_world(w);
 
         if (solved_equation(w))
