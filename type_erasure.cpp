@@ -24,6 +24,41 @@ struct empty_t
 
 struct player_t
 {
+    enum class facing_t
+    {
+        north,
+        south,
+        west,
+        east
+    };
+
+    facing_t facing {facing_t::south};
+
+    static player_t from_delta(int dx, int dy)
+    {
+        if (dx == 0 && dy < 0) return {facing_t::north};
+        if (dx == 0 && dy > 0) return {facing_t::south};
+        if (dx < 0 && dy == 0) return {facing_t::west};
+        if (dx > 0 && dy == 0) return {facing_t::east};
+        return {};
+    }
+
+    char glyph() const
+    {
+        switch (facing)
+        {
+            case facing_t::north: return '^';
+            case facing_t::south: return 'v';
+            case facing_t::west: return '<';
+            case facing_t::east: return '>';
+        }
+        return '@';
+    }
+
+    friend char glyph(const player_t& p)
+    {
+        return p.glyph();
+    }
 };
 
 struct plus_t
@@ -39,10 +74,6 @@ char glyph(const empty_t&)
     return '.';
 }
 
-char glyph(const player_t&)
-{
-    return '@';
-}
 
 char glyph(const plus_t&)
 {
@@ -105,7 +136,7 @@ struct object_properties_t
 template <typename T>
 object_properties_t create_properties(const T& x, bool is_pushable, bool blocks_movement)
 {
-    return {::glyph(x), ::is_empty(x), ::is_player(x), is_pushable, blocks_movement, ::number_value(x)};
+    return {glyph(x), ::is_empty(x), ::is_player(x), is_pushable, blocks_movement, ::number_value(x)};
 }
 
 class object_t
@@ -138,7 +169,9 @@ private:
 
         object_properties_t properties_() const override
         {
-            return properties;
+            auto properties2 = create_properties(data_, properties.is_pushable, properties.blocks_movement);
+            return properties2;
+            // return properties;
         }
 
         T data_;
@@ -301,6 +334,7 @@ bool try_move_player(world_t& w, int dx, int dy)
 {
     point_t player = find_player(w);
     if (player.x < 0) return false;
+    const player_t moved_player = player_t::from_delta(dx, dy);
 
     point_t next {player.x + dx, player.y + dy};
     if (!in_bounds(w, next)) return false;
@@ -312,7 +346,7 @@ bool try_move_player(world_t& w, int dx, int dy)
     if (next_props.is_empty)
     {
         cell(w, player) = object_t(empty_t {});
-        cell(w, next) = object_t(player_t {});
+        cell(w, next) = object_t(moved_player);
         return true;
     }
 
@@ -325,7 +359,7 @@ bool try_move_player(world_t& w, int dx, int dy)
     if (!pushed_object.properties().is_empty) return false;
 
     cell(w, pushed) = next_object;
-    cell(w, next) = object_t(player_t {});
+    cell(w, next) = object_t(moved_player);
     cell(w, player) = object_t(empty_t {});
     return true;
 }
