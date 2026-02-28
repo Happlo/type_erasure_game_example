@@ -12,19 +12,19 @@
 
 using namespace std;
 
-struct point_t
+struct Point
 {
     int x {};
     int y {};
 };
 
-struct empty_t
+struct Empty
 {
 };
 
-struct player_t
+struct Player
 {
-    enum class facing_t
+    enum class Facing
     {
         north,
         south,
@@ -32,55 +32,50 @@ struct player_t
         east
     };
 
-    facing_t facing {facing_t::south};
+    Facing facing {Facing::south};
 
-    static player_t from_delta(int dx, int dy)
+    static Player from_delta(int dx, int dy)
     {
-        if (dx == 0 && dy < 0) return {facing_t::north};
-        if (dx == 0 && dy > 0) return {facing_t::south};
-        if (dx < 0 && dy == 0) return {facing_t::west};
-        if (dx > 0 && dy == 0) return {facing_t::east};
+        if (dx == 0 && dy < 0) return {Facing::north};
+        if (dx == 0 && dy > 0) return {Facing::south};
+        if (dx < 0 && dy == 0) return {Facing::west};
+        if (dx > 0 && dy == 0) return {Facing::east};
         return {};
     }
 
-    char glyph() const
+    friend char glyph(const Player& player)
     {
-        switch (facing)
+        switch (player.facing)
         {
-            case facing_t::north: return '^';
-            case facing_t::south: return 'v';
-            case facing_t::west: return '<';
-            case facing_t::east: return '>';
+            case Facing::north: return '^';
+            case Facing::south: return 'v';
+            case Facing::west: return '<';
+            case Facing::east: return '>';
         }
         return '@';
     }
-
-    friend char glyph(const player_t& p)
-    {
-        return p.glyph();
-    }
 };
 
-struct plus_t
+struct Plus
 {
 };
 
-struct equal_t
+struct Equal
 {
 };
 
-char glyph(const empty_t&)
+char glyph(const Empty&)
 {
     return '.';
 }
 
 
-char glyph(const plus_t&)
+char glyph(const Plus&)
 {
     return '+';
 }
 
-char glyph(const equal_t&)
+char glyph(const Equal&)
 {
     return '=';
 }
@@ -96,7 +91,7 @@ bool is_empty(const T&)
     return false;
 }
 
-bool is_empty(const empty_t&)
+bool is_empty(const Empty&)
 {
     return true;
 }
@@ -107,7 +102,7 @@ bool is_player(const T&)
     return false;
 }
 
-bool is_player(const player_t&)
+bool is_player(const Player&)
 {
     return true;
 }
@@ -123,7 +118,7 @@ int number_value(const int& x)
     return x;
 }
 
-struct object_properties_t
+struct ObjectProperties
 {
     char glyph {'?'};
     bool is_empty {false};
@@ -134,40 +129,40 @@ struct object_properties_t
 };
 
 template <typename T>
-object_properties_t create_properties(const T& x, bool is_pushable, bool blocks_movement)
+ObjectProperties create_properties(const T& x, bool is_pushable, bool blocks_movement)
 {
     return {glyph(x), ::is_empty(x), ::is_player(x), is_pushable, blocks_movement, ::number_value(x)};
 }
 
-class object_t
+class Object
 {
 public:
     template <typename T>
-    object_t(T x, bool is_pushable = false, bool blocks_movement = false)
-        : self_(make_shared<model<T>>(move(x), is_pushable, blocks_movement))
+    Object(T x, bool is_pushable = false, bool blocks_movement = false)
+        : self_(make_shared<Model<T>>(move(x), is_pushable, blocks_movement))
     {}
 
-    object_properties_t properties() const
+    ObjectProperties properties() const
     {
         return self_->properties_();
     }
 
 private:
-    struct concept_t
+    struct Concept
     {
-        virtual ~concept_t() = default;
-        virtual object_properties_t properties_() const = 0;
+        virtual ~Concept() = default;
+        virtual ObjectProperties properties_() const = 0;
     };
 
     template <typename T>
-    struct model : concept_t
+    struct Model : Concept
     {
-        explicit model(T x, bool is_pushable, bool blocks_movement) : data_(move(x))
+        explicit Model(T x, bool is_pushable, bool blocks_movement) : data_(move(x))
         {
             properties = create_properties(data_, is_pushable, blocks_movement);
         }
 
-        object_properties_t properties_() const override
+        ObjectProperties properties_() const override
         {
             auto properties2 = create_properties(data_, properties.is_pushable, properties.blocks_movement);
             return properties2;
@@ -175,40 +170,40 @@ private:
         }
 
         T data_;
-        object_properties_t properties {};
+        ObjectProperties properties {};
     };
 
-    shared_ptr<const concept_t> self_;
+    shared_ptr<const Concept> self_;
 };
 
 template <typename T>
-class make_object
+class MakeObject
 {
 public:
-    explicit make_object(T x) : value_(move(x))
+    explicit MakeObject(T x) : value_(move(x))
     {
     }
 
-    make_object pushable() const
+    MakeObject pushable() const
     {
-        make_object out = *this;
+        MakeObject out = *this;
         out.is_pushable_ = true;
         return out;
     }
 
-    make_object blocking() const
+    MakeObject blocking() const
     {
-        make_object out = *this;
+        MakeObject out = *this;
         out.blocks_movement_ = true;
         return out;
     }
 
-    object_t build() &&
+    Object build() &&
     {
-        return object_t(move(value_), is_pushable_, blocks_movement_);
+        return Object(move(value_), is_pushable_, blocks_movement_);
     }
 
-    operator object_t() &&
+    operator Object() &&
     {
         return move(*this).build();
     }
@@ -223,7 +218,7 @@ struct world_t
 {
     int commits_left {6};
     int undos_left {6};
-    vector<vector<object_t>> grid;
+    vector<vector<Object>> grid;
 };
 
 
@@ -258,43 +253,43 @@ int grid_width(const world_t& w)
     return static_cast<int>(w.grid[0].size());
 }
 
-bool in_bounds(const world_t& w, const point_t& p)
+bool in_bounds(const world_t& w, const Point& p)
 {
     return p.x >= 0 && p.y >= 0 && p.x < grid_width(w) && p.y < grid_height(w);
 }
 
-object_t& cell(world_t& w, const point_t& p)
+Object& cell(world_t& w, const Point& p)
 {
     return w.grid[p.y][p.x];
 }
 
-const object_t& cell(const world_t& w, const point_t& p)
+const Object& cell(const world_t& w, const Point& p)
 {
     return w.grid[p.y][p.x];
 }
 
-point_t lhs_slot()
+Point lhs_slot()
 {
     return {1, 1};
 }
 
-point_t rhs_slot()
+Point rhs_slot()
 {
     return {3, 1};
 }
 
-point_t result_slot()
+Point result_slot()
 {
     return {5, 1};
 }
 
-point_t find_player(const world_t& w)
+Point find_player(const world_t& w)
 {
     for (int y = 0; y < grid_height(w); ++y)
     {
         for (int x = 0; x < grid_width(w); ++x)
         {
-            point_t p {x, y};
+            Point p {x, y};
             if (cell(w, p).properties().is_player) return p;
         }
     }
@@ -309,7 +304,7 @@ void draw_world(const world_t& w)
     {
         for (int x = 0; x < grid_width(w); ++x)
         {
-            point_t p {x, y};
+            Point p {x, y};
             cout << cell(w, p).properties().glyph << ' ';
         }
         cout << '\n';
@@ -332,35 +327,35 @@ bool solved_equation(const world_t& w)
 
 bool try_move_player(world_t& w, int dx, int dy)
 {
-    point_t player = find_player(w);
+    Point player = find_player(w);
     if (player.x < 0) return false;
-    const player_t moved_player = player_t::from_delta(dx, dy);
+    const Player moved_player = Player::from_delta(dx, dy);
 
-    point_t next {player.x + dx, player.y + dy};
+    Point next {player.x + dx, player.y + dy};
     if (!in_bounds(w, next)) return false;
 
-    const object_t next_object = cell(w, next);
+    const Object next_object = cell(w, next);
     const auto next_props = next_object.properties();
     if (next_props.blocks_movement) return false;
 
     if (next_props.is_empty)
     {
-        cell(w, player) = object_t(empty_t {});
-        cell(w, next) = object_t(moved_player);
+        cell(w, player) = Object(Empty {});
+        cell(w, next) = Object(moved_player);
         return true;
     }
 
     if (!next_props.is_pushable) return false;
 
-    point_t pushed {next.x + dx, next.y + dy};
+    Point pushed {next.x + dx, next.y + dy};
     if (!in_bounds(w, pushed)) return false;
 
-    const object_t pushed_object = cell(w, pushed);
+    const Object pushed_object = cell(w, pushed);
     if (!pushed_object.properties().is_empty) return false;
 
     cell(w, pushed) = next_object;
-    cell(w, next) = object_t(moved_player);
-    cell(w, player) = object_t(empty_t {});
+    cell(w, next) = Object(moved_player);
+    cell(w, player) = Object(Empty {});
     return true;
 }
 
@@ -475,16 +470,16 @@ world_t make_world()
 
     world_t w;
     w.grid.assign(static_cast<size_t>(height),
-                  vector<object_t>(static_cast<size_t>(width), empty_t {}));
+                  vector<Object>(static_cast<size_t>(width), Empty {}));
 
-    cell(w, {0, 6}) = object_t(player_t {});
-    cell(w, {2, 1}) = make_object(plus_t {}).blocking();
-    cell(w, {5, 1}) = make_object(equal_t {}).blocking();
+    cell(w, {0, 6}) = Object(Player {});
+    cell(w, {2, 1}) = MakeObject(Plus {}).blocking();
+    cell(w, {4, 1}) = MakeObject(Equal {}).blocking();
 
-    cell(w, {4, 4}) = make_object(1).pushable();
-    cell(w, {7, 5}) = make_object(2).pushable();
-    cell(w, {6, 3}) = make_object(3).pushable();
-    cell(w, {2, 5}) = make_object(4).pushable();
+    cell(w, {4, 4}) = MakeObject(1).pushable();
+    cell(w, {7, 5}) = MakeObject(2).pushable();
+    cell(w, {6, 3}) = MakeObject(3).pushable();
+    cell(w, {2, 5}) = MakeObject(4).pushable();
 
     return w;
 }
