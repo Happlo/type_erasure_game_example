@@ -56,33 +56,19 @@ struct Player
     }
 };
 
-struct Plus
-{
-};
-
-struct Equal
-{
-};
-
 char glyph(const Empty&)
 {
     return '.';
 }
 
-
-char glyph(const Plus&)
-{
-    return '+';
-}
-
-char glyph(const Equal&)
-{
-    return '=';
-}
-
 char glyph(const int& x)
 {
     return static_cast<char>('0' + x);
+}
+
+char glyph(const char& x)
+{
+    return x;
 }
 
 template <typename T>
@@ -268,21 +254,6 @@ const Object& cell(const world_t& w, const Point& p)
     return w.grid[p.y][p.x];
 }
 
-Point lhs_slot()
-{
-    return {1, 1};
-}
-
-Point rhs_slot()
-{
-    return {3, 1};
-}
-
-Point result_slot()
-{
-    return {5, 1};
-}
-
 Point find_player(const world_t& w)
 {
     for (int y = 0; y < grid_height(w); ++y)
@@ -311,15 +282,46 @@ void draw_world(const world_t& w)
     }
 
     cout << "\nCommands: w/a/s/d, commit, undo, help, quit\n";
-    cout << "Goal: place numbers so [slot]+[slot]=[slot] is true.\n";
-    cout << "Equation row is y=1 with '+' and '=' fixed in place.\n";
+    cout << "Goal: make the row containing '=' form a true equation.\n";
+    cout << "The '+' and '=' tiles stay fixed in place.\n";
+}
+
+Point find_glyph(const world_t& w, char target)
+{
+    for (int y = 0; y < grid_height(w); ++y)
+    {
+        for (int x = 0; x < grid_width(w); ++x)
+        {
+            Point p {x, y};
+            if (cell(w, p).properties().glyph == target) return p;
+        }
+    }
+    throw std::runtime_error("Glyph \"" + std::to_string(target) + "\" doesn't exist");
 }
 
 bool solved_equation(const world_t& w)
 {
-    int lhs = cell(w, lhs_slot()).properties().number_value;
-    int rhs = cell(w, rhs_slot()).properties().number_value;
-    int result = cell(w, result_slot()).properties().number_value;
+    Point equal_sign = find_glyph(w, '=');
+
+    Point plus_sign {-1, equal_sign.y};
+    for (int x = 0; x < grid_width(w); ++x)
+    {
+        Point p {x, equal_sign.y};
+        if (cell(w, p).properties().glyph == '+')
+        {
+            plus_sign = p;
+            break;
+        }
+    }
+
+    if (plus_sign.x < 0) return false;
+    if (plus_sign.x + 1 >= equal_sign.x) return false;
+    if (plus_sign.x == 0) return false;
+    if (equal_sign.x + 1 >= grid_width(w)) return false;
+
+    int lhs = cell(w, {plus_sign.x - 1, plus_sign.y}).properties().number_value;
+    int rhs = cell(w, {plus_sign.x + 1, plus_sign.y}).properties().number_value;
+    int result = cell(w, {equal_sign.x + 1, equal_sign.y}).properties().number_value;
 
     if (lhs < 0 || rhs < 0 || result < 0) return false;
     return lhs + rhs == result;
@@ -465,16 +467,15 @@ string read_command_raw(char first)
 
 world_t make_world()
 {
-    constexpr int width = 9;
-    constexpr int height = 7;
+    constexpr size_t width = 9;
+    constexpr size_t height = 7;
 
     world_t w;
-    w.grid.assign(static_cast<size_t>(height),
-                  vector<Object>(static_cast<size_t>(width), Empty {}));
+    w.grid.assign(height, vector<Object>(width, Empty {}));
 
-    cell(w, {0, 6}) = Object(Player {});
-    cell(w, {2, 1}) = MakeObject(Plus {}).blocking();
-    cell(w, {4, 1}) = MakeObject(Equal {}).blocking();
+    cell(w, {0, 6}) = MakeObject(Player {});
+    cell(w, {2, 1}) = MakeObject('+').pushable();
+    cell(w, {4, 1}) = MakeObject('=').pushable();
 
     cell(w, {4, 4}) = MakeObject(1).pushable();
     cell(w, {7, 5}) = MakeObject(2).pushable();
