@@ -200,7 +200,7 @@ private:
     bool blocks_movement_ {false};
 };
 
-struct world_t
+struct World
 {
     int commits_left {6};
     int undos_left {6};
@@ -208,53 +208,53 @@ struct world_t
 };
 
 
-using history_t = vector<world_t>;
+using History = vector<World>;
 
-void commit(history_t& x)
+void commit(History& x)
 {
     assert(!x.empty());
     x.push_back(x.back());
 }
 
-void undo(history_t& x)
+void undo(History& x)
 {
     assert(!x.empty());
     x.pop_back();
 }
 
-world_t& current(history_t& x)
+World& current(History& x)
 {
     assert(!x.empty());
     return x.back();
 }
 
-int grid_height(const world_t& w)
+int grid_height(const World& w)
 {
     return static_cast<int>(w.grid.size());
 }
 
-int grid_width(const world_t& w)
+int grid_width(const World& w)
 {
     if (w.grid.empty()) return 0;
     return static_cast<int>(w.grid[0].size());
 }
 
-bool in_bounds(const world_t& w, const Point& p)
+bool in_bounds(const World& w, const Point& p)
 {
     return p.x >= 0 && p.y >= 0 && p.x < grid_width(w) && p.y < grid_height(w);
 }
 
-Object& cell(world_t& w, const Point& p)
+Object& cell(World& w, const Point& p)
 {
     return w.grid[p.y][p.x];
 }
 
-const Object& cell(const world_t& w, const Point& p)
+const Object& cell(const World& w, const Point& p)
 {
     return w.grid[p.y][p.x];
 }
 
-Point find_player(const world_t& w)
+Point find_player(const World& w)
 {
     for (int y = 0; y < grid_height(w); ++y)
     {
@@ -267,7 +267,7 @@ Point find_player(const world_t& w)
     return {-1, -1};
 }
 
-void draw_world(const world_t& w)
+void draw_world(const World& w)
 {
     cout << "\nWorld commits/undos: " << w.commits_left << "/" << w.undos_left << "\n\n";
 
@@ -307,7 +307,7 @@ bool equation_is_correct(const std::string& equation)
     return lhs + rhs == result;
 }
 
-bool solved_equation(const world_t& w)
+bool solved_equation(const World& w)
 {
     for (int y = 0; y < grid_height(w); ++y)
     {
@@ -324,7 +324,7 @@ bool solved_equation(const world_t& w)
     return false;
 }
 
-bool try_move_player(world_t& w, int dx, int dy)
+bool try_move_player(World& w, int dx, int dy)
 {
     Point player = find_player(w);
     if (player.x < 0) return false;
@@ -358,7 +358,7 @@ bool try_move_player(world_t& w, int dx, int dy)
     return true;
 }
 
-bool world_commit(history_t& h)
+bool world_commit(History& h)
 {
     auto& w = current(h);
     if (w.commits_left <= 0) return false;
@@ -368,7 +368,7 @@ bool world_commit(history_t& h)
     return true;
 }
 
-bool world_undo(history_t& h)
+bool world_undo(History& h)
 {
     auto& w = current(h);
     if (w.undos_left <= 0) return false;
@@ -388,7 +388,7 @@ void show_help()
     cout << "quit      Exit\n";
 }
 
-struct raw_mode_guard_t
+struct RawModeGuard
 {
     bool active {false};
     termios old_mode {};
@@ -408,7 +408,7 @@ struct raw_mode_guard_t
         return true;
     }
 
-    ~raw_mode_guard_t()
+    ~RawModeGuard()
     {
         if (active) tcsetattr(STDIN_FILENO, TCSANOW, &old_mode);
     }
@@ -462,12 +462,12 @@ string read_command_raw(char first)
     }
 }
 
-world_t make_world()
+World make_world()
 {
     constexpr size_t width = 9;
     constexpr size_t height = 7;
 
-    world_t w;
+    World w;
     w.grid.assign(height, vector<Object>(width, Empty {}));
 
     cell(w, {0, 6}) = MakeObject(Player {});
@@ -484,12 +484,12 @@ world_t make_world()
 
 int main()
 {
-    history_t h {make_world()};
+    History h {make_world()};
 
     cout << "Time Grid\n";
     show_help();
 
-    raw_mode_guard_t raw_mode;
+    RawModeGuard raw_mode;
     if (!raw_mode.enable())
     {
         cerr << "Failed to enable raw terminal input.\n";
