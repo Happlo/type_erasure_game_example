@@ -58,7 +58,7 @@ struct Player
 
 char glyph(const Empty&)
 {
-    return '.';
+    return ' ';
 }
 
 char glyph(const int& x)
@@ -286,45 +286,42 @@ void draw_world(const world_t& w)
     cout << "The '+' and '=' tiles stay fixed in place.\n";
 }
 
-Point find_glyph(const world_t& w, char target)
+bool equation_is_correct(const std::string& equation)
 {
-    for (int y = 0; y < grid_height(w); ++y)
+    string compact;
+    for (char ch : equation)
     {
-        for (int x = 0; x < grid_width(w); ++x)
-        {
-            Point p {x, y};
-            if (cell(w, p).properties().glyph == target) return p;
-        }
+        if (ch != ' ') compact.push_back(ch);
     }
-    throw std::runtime_error("Glyph \"" + std::to_string(target) + "\" doesn't exist");
+
+    if (compact.size() != 5) return false;
+    if (!isdigit(static_cast<unsigned char>(compact[0]))) return false;
+    if (compact[1] != '+') return false;
+    if (!isdigit(static_cast<unsigned char>(compact[2]))) return false;
+    if (compact[3] != '=') return false;
+    if (!isdigit(static_cast<unsigned char>(compact[4]))) return false;
+
+    int lhs = compact[0] - '0';
+    int rhs = compact[2] - '0';
+    int result = compact[4] - '0';
+    return lhs + rhs == result;
 }
 
 bool solved_equation(const world_t& w)
 {
-    Point equal_sign = find_glyph(w, '=');
-
-    Point plus_sign {-1, equal_sign.y};
-    for (int x = 0; x < grid_width(w); ++x)
+    for (int y = 0; y < grid_height(w); ++y)
     {
-        Point p {x, equal_sign.y};
-        if (cell(w, p).properties().glyph == '+')
+        string row;
+        row.reserve(static_cast<size_t>(grid_width(w)));
+        for (int x = 0; x < grid_width(w); ++x)
         {
-            plus_sign = p;
-            break;
+            row.push_back(cell(w, {x, y}).properties().glyph);
         }
+
+        if (row.find('=') != string::npos) return equation_is_correct(row);
     }
 
-    if (plus_sign.x < 0) return false;
-    if (plus_sign.x + 1 >= equal_sign.x) return false;
-    if (plus_sign.x == 0) return false;
-    if (equal_sign.x + 1 >= grid_width(w)) return false;
-
-    int lhs = cell(w, {plus_sign.x - 1, plus_sign.y}).properties().number_value;
-    int rhs = cell(w, {plus_sign.x + 1, plus_sign.y}).properties().number_value;
-    int result = cell(w, {equal_sign.x + 1, equal_sign.y}).properties().number_value;
-
-    if (lhs < 0 || rhs < 0 || result < 0) return false;
-    return lhs + rhs == result;
+    return false;
 }
 
 bool try_move_player(world_t& w, int dx, int dy)
