@@ -63,6 +63,10 @@ char glyph(const Empty&)
 
 char glyph(const int& x)
 {
+    if (0 < x || x > 9 )
+    {
+        throw std::runtime_error("int must be between 0 and 9 to generate a glyph");
+    }
     return static_cast<char>('0' + x);
 }
 
@@ -264,7 +268,7 @@ Point find_player(const World& w)
             if (cell(w, p).properties().is_player) return p;
         }
     }
-    return {-1, -1};
+    throw std::runtime_error("Player not found");
 }
 
 void draw_world(const World& w)
@@ -327,7 +331,6 @@ bool solved_equation(const World& w)
 bool try_move_player(World& w, int dx, int dy)
 {
     Point player = find_player(w);
-    if (player.x < 0) return false;
     const Player moved_player = Player::from_delta(dx, dy);
 
     Point next {player.x + dx, player.y + dy};
