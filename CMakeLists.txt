@@ -10,14 +10,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(nlohmann_json CONFIG REQUIRED)
+
 add_library(core STATIC
     core/src/game.cpp
     core/src/grid_rules.cpp
     core/src/solution_rules.cpp
+    core/src/world_io.cpp
 )
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core/include
 )
+target_link_libraries(core PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(type_erasure
     cli/main.cpp

@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -12,30 +13,29 @@ std::vector<std::string> extract_grid(const std::string& rendered)
 {
     std::istringstream in(rendered);
     std::string line;
-    std::vector<std::string> lines;
+    std::vector<std::string> compact;
     while (std::getline(in, line))
     {
-        lines.push_back(line);
-    }
-
-    std::vector<std::string> grid;
-    for (const std::string& candidate : lines)
-    {
-        if (candidate.size() == 18) grid.push_back(candidate);
-        if (grid.size() == 7) break;
-    }
-
-    std::vector<std::string> compact;
-    compact.reserve(grid.size());
-    for (const auto& row : grid)
-    {
-        std::string out;
-        out.reserve(9);
-        for (size_t i = 0; i < row.size(); i += 2)
+        if (line.empty() || line.size() % 2 != 0) continue;
+        bool is_grid_row = true;
+        for (size_t i = 1; i < line.size(); i += 2)
         {
-            out.push_back(row[i]);
+            if (line[i] != ' ')
+            {
+                is_grid_row = false;
+                break;
+            }
         }
-        compact.push_back(out);
+
+        if (!is_grid_row) continue;
+
+        std::string row;
+        row.reserve(line.size() / 2);
+        for (size_t i = 0; i < line.size(); i += 2)
+        {
+            row.push_back(line[i]);
+        }
+        compact.push_back(row);
     }
     return compact;
 }
@@ -44,24 +44,24 @@ std::vector<std::string> extract_grid(const std::string& rendered)
 TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
 {
     // Given
-    core::Game game;
+    std::unique_ptr<core::Game> game = core::Game::create_default();
 
     // When
-    const std::string rendered = game.render();
+    const std::string rendered = game->render();
 
     // Then
     EXPECT_NE(rendered.find("World commits/undos: 6/6"), std::string::npos);
-    EXPECT_FALSE(game.solved());
+    EXPECT_FALSE(game->solved());
 }
 
 TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdates)
 {
     // Given
-    core::Game game;
+    std::unique_ptr<core::Game> game = core::Game::create_default();
 
     // When
-    const bool moved = game.apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game.render());
+    const bool moved = game->apply_event(core::Event::MoveRight);
+    const auto grid = extract_grid(game->render());
 
     // Then
     EXPECT_TRUE(moved);
@@ -73,13 +73,13 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
 TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 {
     // Given
-    core::Game game;
+    std::unique_ptr<core::Game> game = core::Game::create_default();
 
     // When
-    const bool committed = game.apply_event(core::Event::Commit);
-    const std::string after_commit = game.render();
-    const bool undone = game.apply_event(core::Event::Undo);
-    const std::string after_undo = game.render();
+    const bool committed = game->apply_event(core::Event::Commit);
+    const std::string after_commit = game->render();
+    const bool undone = game->apply_event(core::Event::Undo);
+    const std::string after_undo = game->render();
 
     // Then
     EXPECT_TRUE(committed);
@@ -91,17 +91,68 @@ TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
 {
     // Given
-    core::Game game;
+    std::unique_ptr<core::Game> game = core::Game::create_default();
 
     // When
-    EXPECT_TRUE(game.apply_event(core::Event::MoveUp));
-    EXPECT_TRUE(game.apply_event(core::Event::MoveRight));
-    const bool pushed = game.apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game.render());
+    EXPECT_TRUE(game->apply_event(core::Event::MoveUp));
+    EXPECT_TRUE(game->apply_event(core::Event::MoveRight));
+    const bool pushed = game->apply_event(core::Event::MoveRight);
+    const auto grid = extract_grid(game->render());
 
     // Then
     EXPECT_TRUE(pushed);
     ASSERT_EQ(grid.size(), 7U);
     EXPECT_EQ(grid[5][2], '>');
     EXPECT_EQ(grid[5][3], '4');
+}
+
+TEST(CoreGameTest, GivenCustomWorldJsonWhenLoadingThenWorldIsBuiltFromJson)
+{
+    // Given
+    const std::string json_world = R"({
+  "version": 1,
+  "size": { "width": 5, "height": 3 },
+  "resources": { "commits": 2, "undos": 1 },
+  "tiles": [
+    { "x": 0, "y": 2, "kind": "player", "facing": "east" },
+    { "x": 1, "y": 2, "kind": "number", "value": 4, "pushable": true },
+    { "x": 2, "y": 1, "kind": "plus", "pushable": true },
+    { "x": 3, "y": 1, "kind": "equals", "pushable": true }
+  ]
+})";
+
+    // When
+    std::unique_ptr<core::Game> game = core::Game::from_json(json_world);
+    const auto grid = extract_grid(game->render());
+
+    // Then
+    EXPECT_NE(game->render().find("World commits/undos: 2/1"), std::string::npos);
+    ASSERT_EQ(grid.size(), 3U);
+    EXPECT_EQ(grid[2][0], '>');
+    EXPECT_EQ(grid[2][1], '4');
+    EXPECT_EQ(grid[1][2], '+');
+    EXPECT_EQ(grid[1][3], '=');
+}
+
+TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesWorld)
+{
+    // Given
+    std::unique_ptr<core::Game> original = core::Game::from_json(R"({
+  "version": 1,
+  "size": { "width": 4, "height": 3 },
+  "resources": { "commits": 3, "undos": 7 },
+  "tiles": [
+    { "x": 0, "y": 2, "kind": "player", "facing": "north" },
+    { "x": 1, "y": 2, "kind": "number", "value": 2, "pushable": true, "blocking": true },
+    { "x": 1, "y": 1, "kind": "symbol", "glyph": "*", "blocking": true }
+  ]
+})");
+
+    // When
+    const std::string encoded = original->to_json();
+    std::unique_ptr<core::Game> restored = core::Game::from_json(encoded);
+
+    // Then
+    EXPECT_EQ(restored->render(), original->render());
+    EXPECT_EQ(restored->to_json(), encoded);
 }

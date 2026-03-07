@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace core
 {
@@ -18,19 +19,14 @@ enum class Event
 class Game
 {
 public:
-    Game();
-    Game(const Game& other);
-    Game& operator=(const Game& other);
-    Game(Game&& other) noexcept;
-    Game& operator=(Game&& other) noexcept;
-    ~Game();
+    virtual ~Game() = default;
 
-    bool apply_event(Event event);
-    bool solved() const;
-    std::string render() const;
+    virtual bool apply_event(Event event) = 0;
+    virtual bool solved() const = 0;
+    virtual std::string render() const = 0;
+    virtual std::string to_json() const = 0;
 
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    static std::unique_ptr<Game> create_default();
+    static std::unique_ptr<Game> from_json(std::string_view json_text);
 };
 }  // namespace core

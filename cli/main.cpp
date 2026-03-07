@@ -1,7 +1,10 @@
 #include "core/game.hpp"
 
 #include <cctype>
+#include <fstream>
 #include <iostream>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <termios.h>
 #include <unistd.h>
@@ -92,11 +95,43 @@ void show_help()
 }
 }  // namespace
 
-int main()
+int main(int argc, char** argv)
 {
-    core::Game game;
+    std::unique_ptr<core::Game> game;
+    if (argc == 1)
+    {
+        game = core::Game::create_default();
+    }
+    else if (argc == 2)
+    {
+        const std::string world_path = argv[1];
+        std::ifstream input(world_path);
+        if (!input)
+        {
+            std::cerr << "Failed to open world file: " << world_path << "\n";
+            return 1;
+        }
+
+        std::stringstream buffer;
+        buffer << input.rdbuf();
+        try
+        {
+            game = core::Game::from_json(buffer.str());
+        }
+        catch (const std::exception& ex)
+        {
+            std::cerr << "Failed to load world JSON: " << ex.what() << "\n";
+            return 1;
+        }
+    }
+    else
+    {
+        std::cerr << "Usage: type_erasure [path-to-world.json]\n";
+        return 1;
+    }
 
     std::cout << "Time Grid\n";
+    if (argc == 2) std::cout << "Loaded world from " << argv[1] << "\n";
     show_help();
 
     RawModeGuard raw_mode;
@@ -115,20 +150,20 @@ int main()
             return true;
         }
 
-        if (line == "w") { game.apply_event(core::Event::MoveUp); return true; }
-        if (line == "a") { game.apply_event(core::Event::MoveLeft); return true; }
-        if (line == "s") { game.apply_event(core::Event::MoveDown); return true; }
-        if (line == "d") { game.apply_event(core::Event::MoveRight); return true; }
+        if (line == "w") { game->apply_event(core::Event::MoveUp); return true; }
+        if (line == "a") { game->apply_event(core::Event::MoveLeft); return true; }
+        if (line == "s") { game->apply_event(core::Event::MoveDown); return true; }
+        if (line == "d") { game->apply_event(core::Event::MoveRight); return true; }
 
         if (line == "commit")
         {
-            if (!game.apply_event(core::Event::Commit)) std::cout << "Cannot commit world.\n";
+            if (!game->apply_event(core::Event::Commit)) std::cout << "Cannot commit world.\n";
             return true;
         }
 
         if (line == "undo")
         {
-            if (!game.apply_event(core::Event::Undo)) std::cout << "Cannot undo world.\n";
+            if (!game->apply_event(core::Event::Undo)) std::cout << "Cannot undo world.\n";
             return true;
         }
 
@@ -138,9 +173,9 @@ int main()
 
     while (true)
     {
-        std::cout << game.render();
+        std::cout << game->render();
 
-        if (game.solved())
+        if (game->solved())
         {
             std::cout << "Equation solved.\n";
             break;
