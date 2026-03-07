@@ -12,6 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(core STATIC
     core/src/game.cpp
+    core/src/grid_rules.cpp
+    core/src/solution_rules.cpp
 )
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core/include
@@ -23,8 +25,10 @@ add_executable(type_erasure
 target_link_libraries(type_erasure PRIVATE core)
 
 enable_testing()
+find_package(GTest CONFIG REQUIRED)
+
 add_executable(core_tests
     test/core_tests.cpp
 )
-target_link_libraries(core_tests PRIVATE core)
+target_link_libraries(core_tests PRIVATE core GTest::gtest_main)
 add_test(NAME core_tests COMMAND core_tests)

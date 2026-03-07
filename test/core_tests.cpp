@@ -1,6 +1,7 @@
 #include "core/game.hpp"
 
-#include <cassert>
+#include <gtest/gtest.h>
+
 #include <sstream>
 #include <string>
 #include <vector>
@@ -40,41 +41,67 @@ std::vector<std::string> extract_grid(const std::string& rendered)
 }
 }  // namespace
 
-int main()
+TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
 {
-    {
-        core::Game game;
-        const std::string rendered = game.render();
-        assert(rendered.find("World commits/undos: 6/6") != std::string::npos);
-        assert(!game.solved());
-    }
+    // Given
+    core::Game game;
 
-    {
-        core::Game game;
-        assert(game.apply_event(core::Event::MoveRight));
-        const auto grid = extract_grid(game.render());
-        assert(grid.size() == 7);
-        assert(grid[6][0] == ' ');
-        assert(grid[6][1] == '>');
-    }
+    // When
+    const std::string rendered = game.render();
 
-    {
-        core::Game game;
-        assert(game.apply_event(core::Event::Commit));
-        assert(game.render().find("World commits/undos: 5/6") != std::string::npos);
-        assert(game.apply_event(core::Event::Undo));
-        assert(game.render().find("World commits/undos: 6/5") != std::string::npos);
-    }
+    // Then
+    EXPECT_NE(rendered.find("World commits/undos: 6/6"), std::string::npos);
+    EXPECT_FALSE(game.solved());
+}
 
-    {
-        core::Game game;
-        assert(game.apply_event(core::Event::MoveUp));
-        assert(game.apply_event(core::Event::MoveRight));
-        assert(game.apply_event(core::Event::MoveRight));
-        const auto grid = extract_grid(game.render());
-        assert(grid[5][2] == '>');
-        assert(grid[5][3] == '4');
-    }
+TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdates)
+{
+    // Given
+    core::Game game;
 
-    return 0;
+    // When
+    const bool moved = game.apply_event(core::Event::MoveRight);
+    const auto grid = extract_grid(game.render());
+
+    // Then
+    EXPECT_TRUE(moved);
+    ASSERT_EQ(grid.size(), 7U);
+    EXPECT_EQ(grid[6][0], ' ');
+    EXPECT_EQ(grid[6][1], '>');
+}
+
+TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
+{
+    // Given
+    core::Game game;
+
+    // When
+    const bool committed = game.apply_event(core::Event::Commit);
+    const std::string after_commit = game.render();
+    const bool undone = game.apply_event(core::Event::Undo);
+    const std::string after_undo = game.render();
+
+    // Then
+    EXPECT_TRUE(committed);
+    EXPECT_NE(after_commit.find("World commits/undos: 5/6"), std::string::npos);
+    EXPECT_TRUE(undone);
+    EXPECT_NE(after_undo.find("World commits/undos: 6/5"), std::string::npos);
+}
+
+TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
+{
+    // Given
+    core::Game game;
+
+    // When
+    EXPECT_TRUE(game.apply_event(core::Event::MoveUp));
+    EXPECT_TRUE(game.apply_event(core::Event::MoveRight));
+    const bool pushed = game.apply_event(core::Event::MoveRight);
+    const auto grid = extract_grid(game.render());
+
+    // Then
+    EXPECT_TRUE(pushed);
+    ASSERT_EQ(grid.size(), 7U);
+    EXPECT_EQ(grid[5][2], '>');
+    EXPECT_EQ(grid[5][3], '4');
 }
