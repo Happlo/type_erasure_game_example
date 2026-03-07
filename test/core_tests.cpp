@@ -50,7 +50,7 @@ TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
     const std::string rendered = game->render();
 
     // Then
-    EXPECT_NE(rendered.find("World commits/undos: 6/6"), std::string::npos);
+    EXPECT_NE(rendered.find("Map commits/undos: 6/6"), std::string::npos);
     EXPECT_FALSE(game->solved());
 }
 
@@ -83,9 +83,9 @@ TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 
     // Then
     EXPECT_TRUE(committed);
-    EXPECT_NE(after_commit.find("World commits/undos: 5/6"), std::string::npos);
+    EXPECT_NE(after_commit.find("Map commits/undos: 5/6"), std::string::npos);
     EXPECT_TRUE(undone);
-    EXPECT_NE(after_undo.find("World commits/undos: 6/5"), std::string::npos);
+    EXPECT_NE(after_undo.find("Map commits/undos: 6/5"), std::string::npos);
 }
 
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
@@ -106,10 +106,10 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     EXPECT_EQ(grid[5][3], '4');
 }
 
-TEST(CoreGameTest, GivenCustomWorldJsonWhenLoadingThenWorldIsBuiltFromJson)
+TEST(CoreGameTest, GivenCustomMapJsonWhenLoadingThenMapIsBuiltFromJson)
 {
     // Given
-    const std::string json_world = R"({
+    const std::string json_map = R"({
   "version": 1,
   "size": { "width": 5, "height": 3 },
   "resources": { "commits": 2, "undos": 1 },
@@ -122,11 +122,11 @@ TEST(CoreGameTest, GivenCustomWorldJsonWhenLoadingThenWorldIsBuiltFromJson)
 })";
 
     // When
-    std::unique_ptr<core::Game> game = core::Game::from_json(json_world);
+    std::unique_ptr<core::Game> game = core::Game::from_json(json_map);
     const auto grid = extract_grid(game->render());
 
     // Then
-    EXPECT_NE(game->render().find("World commits/undos: 2/1"), std::string::npos);
+    EXPECT_NE(game->render().find("Map commits/undos: 2/1"), std::string::npos);
     ASSERT_EQ(grid.size(), 3U);
     EXPECT_EQ(grid[2][0], '>');
     EXPECT_EQ(grid[2][1], '4');
@@ -134,7 +134,7 @@ TEST(CoreGameTest, GivenCustomWorldJsonWhenLoadingThenWorldIsBuiltFromJson)
     EXPECT_EQ(grid[1][3], '=');
 }
 
-TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesWorld)
+TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesMap)
 {
     // Given
     std::unique_ptr<core::Game> original = core::Game::from_json(R"({

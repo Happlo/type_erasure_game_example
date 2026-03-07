@@ -38,7 +38,7 @@ struct Cell
     int facing_index {1};  // 0=north,1=south,2=west,3=east
 };
 
-struct BuilderWorld
+struct BuilderMap
 {
     int width {9};
     int height {7};
@@ -152,14 +152,14 @@ Cell build_cell_from_brush(const Brush& brush)
     return cell;
 }
 
-void ensure_single_player(BuilderWorld& world, int keep_x, int keep_y)
+void ensure_single_player(BuilderMap& map, int keep_x, int keep_y)
 {
-    for (int y = 0; y < world.height; ++y)
+    for (int y = 0; y < map.height; ++y)
     {
-        for (int x = 0; x < world.width; ++x)
+        for (int x = 0; x < map.width; ++x)
         {
             if (x == keep_x && y == keep_y) continue;
-            Cell& cell = world.at(x, y);
+            Cell& cell = map.at(x, y);
             if (cell.kind == TileKind::Player)
             {
                 cell = Cell {};
@@ -201,19 +201,19 @@ nlohmann::json tile_to_json(const Cell& cell, int x, int y)
     return tile;
 }
 
-std::string world_to_json(const BuilderWorld& world)
+std::string map_to_json(const BuilderMap& map)
 {
     nlohmann::json root;
     root["version"] = 1;
-    root["size"] = { {"width", world.width}, {"height", world.height} };
-    root["resources"] = { {"commits", world.commits}, {"undos", world.undos} };
+    root["size"] = { {"width", map.width}, {"height", map.height} };
+    root["resources"] = { {"commits", map.commits}, {"undos", map.undos} };
     root["tiles"] = nlohmann::json::array();
 
-    for (int y = 0; y < world.height; ++y)
+    for (int y = 0; y < map.height; ++y)
     {
-        for (int x = 0; x < world.width; ++x)
+        for (int x = 0; x < map.width; ++x)
         {
-            const Cell& cell = world.at(x, y);
+            const Cell& cell = map.at(x, y);
             if (cell.kind == TileKind::Empty) continue;
             root["tiles"].push_back(tile_to_json(cell, x, y));
         }
@@ -222,29 +222,29 @@ std::string world_to_json(const BuilderWorld& world)
     return root.dump(2);
 }
 
-std::optional<BuilderWorld> world_from_json(const std::string& text, std::string& error_message)
+std::optional<BuilderMap> map_from_json(const std::string& text, std::string& error_message)
 {
     try
     {
         const nlohmann::json root = nlohmann::json::parse(text);
-        BuilderWorld world;
-        world.width = root.at("size").at("width").get<int>();
-        world.height = root.at("size").at("height").get<int>();
-        if (world.width <= 0 || world.height <= 0)
+        BuilderMap map;
+        map.width = root.at("size").at("width").get<int>();
+        map.height = root.at("size").at("height").get<int>();
+        if (map.width <= 0 || map.height <= 0)
         {
-            error_message = "World width and height must be > 0";
+            error_message = "Map width and height must be > 0";
             return std::nullopt;
         }
 
-        world.commits = root.value("resources", nlohmann::json::object()).value("commits", 6);
-        world.undos = root.value("resources", nlohmann::json::object()).value("undos", 6);
-        world.cells.assign(static_cast<size_t>(world.width * world.height), Cell {});
+        map.commits = root.value("resources", nlohmann::json::object()).value("commits", 6);
+        map.undos = root.value("resources", nlohmann::json::object()).value("undos", 6);
+        map.cells.assign(static_cast<size_t>(map.width * map.height), Cell {});
 
         for (const auto& tile : root.at("tiles"))
         {
             const int x = tile.at("x").get<int>();
             const int y = tile.at("y").get<int>();
-            if (x < 0 || y < 0 || x >= world.width || y >= world.height)
+            if (x < 0 || y < 0 || x >= map.width || y >= map.height)
             {
                 error_message = "Tile is out of bounds";
                 return std::nullopt;
@@ -304,17 +304,17 @@ std::optional<BuilderWorld> world_from_json(const std::string& text, std::string
             cell.blocking = tile.value("blocking", false);
             if (cell.kind == TileKind::Wall) cell.blocking = true;
 
-            world.at(x, y) = cell;
+            map.at(x, y) = cell;
         }
 
         bool found_player = false;
-        for (const Cell& cell : world.cells)
+        for (const Cell& cell : map.cells)
         {
             if (cell.kind == TileKind::Player)
             {
                 if (found_player)
                 {
-                    error_message = "World must have exactly one player";
+                    error_message = "Map must have exactly one player";
                     return std::nullopt;
                 }
                 found_player = true;
@@ -322,11 +322,11 @@ std::optional<BuilderWorld> world_from_json(const std::string& text, std::string
         }
         if (!found_player)
         {
-            error_message = "World must contain a player";
+            error_message = "Map must contain a player";
             return std::nullopt;
         }
 
-        return world;
+        return map;
     }
     catch (const std::exception& ex)
     {
@@ -335,37 +335,37 @@ std::optional<BuilderWorld> world_from_json(const std::string& text, std::string
     }
 }
 
-BuilderWorld make_default_world()
+BuilderMap make_default_map()
 {
-    BuilderWorld world;
-    world.cells.assign(static_cast<size_t>(world.width * world.height), Cell {});
+    BuilderMap map;
+    map.cells.assign(static_cast<size_t>(map.width * map.height), Cell {});
 
-    world.at(0, 6).kind = TileKind::Player;
-    world.at(0, 6).facing_index = 1;
+    map.at(0, 6).kind = TileKind::Player;
+    map.at(0, 6).facing_index = 1;
 
-    world.at(2, 1).kind = TileKind::Plus;
-    world.at(2, 1).pushable = true;
+    map.at(2, 1).kind = TileKind::Plus;
+    map.at(2, 1).pushable = true;
 
-    world.at(4, 1).kind = TileKind::Equals;
-    world.at(4, 1).pushable = true;
+    map.at(4, 1).kind = TileKind::Equals;
+    map.at(4, 1).pushable = true;
 
-    world.at(4, 4).kind = TileKind::Number;
-    world.at(4, 4).number_value = 1;
-    world.at(4, 4).pushable = true;
+    map.at(4, 4).kind = TileKind::Number;
+    map.at(4, 4).number_value = 1;
+    map.at(4, 4).pushable = true;
 
-    world.at(7, 5).kind = TileKind::Number;
-    world.at(7, 5).number_value = 2;
-    world.at(7, 5).pushable = true;
+    map.at(7, 5).kind = TileKind::Number;
+    map.at(7, 5).number_value = 2;
+    map.at(7, 5).pushable = true;
 
-    world.at(6, 3).kind = TileKind::Number;
-    world.at(6, 3).number_value = 3;
-    world.at(6, 3).pushable = true;
+    map.at(6, 3).kind = TileKind::Number;
+    map.at(6, 3).number_value = 3;
+    map.at(6, 3).pushable = true;
 
-    world.at(2, 5).kind = TileKind::Number;
-    world.at(2, 5).number_value = 4;
-    world.at(2, 5).pushable = true;
+    map.at(2, 5).kind = TileKind::Number;
+    map.at(2, 5).number_value = 4;
+    map.at(2, 5).pushable = true;
 
-    return world;
+    return map;
 }
 
 bool save_file(const std::string& path, const std::string& content)
@@ -395,7 +395,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    GLFWwindow* window = glfwCreateWindow(1280, 800, "Type Erasure World Builder", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1280, 800, "Type Erasure Map Builder", nullptr, nullptr);
     if (window == nullptr)
     {
         std::fprintf(stderr, "Failed to create GLFW window\n");
@@ -415,11 +415,11 @@ int main()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
-    BuilderWorld world = make_default_world();
+    BuilderMap map = make_default_map();
     Brush brush;
 
     std::array<char, 256> file_path {};
-    std::snprintf(file_path.data(), file_path.size(), "%s", "worlds/try_world.json");
+    std::snprintf(file_path.data(), file_path.size(), "%s", "maps/try_map.json");
 
     std::string status = "Ready.";
 
@@ -433,22 +433,22 @@ int main()
 
         ImGui::Begin("Tools");
 
-        int new_width = world.width;
-        int new_height = world.height;
+        int new_width = map.width;
+        int new_height = map.height;
         ImGui::InputInt("Width", &new_width);
         ImGui::InputInt("Height", &new_height);
         if (new_width < 1) new_width = 1;
         if (new_height < 1) new_height = 1;
         if (new_width > 64) new_width = 64;
         if (new_height > 64) new_height = 64;
-        if (ImGui::Button("Resize World"))
+        if (ImGui::Button("Resize Map"))
         {
-            world.resize(new_width, new_height);
-            status = "Resized world.";
+            map.resize(new_width, new_height);
+            status = "Resized map.";
         }
 
-        ImGui::InputInt("Commits", &world.commits);
-        ImGui::InputInt("Undos", &world.undos);
+        ImGui::InputInt("Commits", &map.commits);
+        ImGui::InputInt("Undos", &map.undos);
 
         ImGui::Separator();
         ImGui::Text("Brush");
@@ -496,14 +496,14 @@ int main()
         ImGui::InputText("File", file_path.data(), file_path.size());
         if (ImGui::Button("Save JSON"))
         {
-            const std::string json_text = world_to_json(world);
+            const std::string json_text = map_to_json(map);
             if (!save_file(file_path.data(), json_text))
             {
                 status = "Failed to save file.";
             }
             else
             {
-                status = "Saved world JSON.";
+                status = "Saved map JSON.";
             }
         }
         ImGui::SameLine();
@@ -517,15 +517,15 @@ int main()
             else
             {
                 std::string error;
-                auto parsed = world_from_json(text, error);
+                auto parsed = map_from_json(text, error);
                 if (!parsed)
                 {
-                    status = "Invalid world JSON: " + error;
+                    status = "Invalid map JSON: " + error;
                 }
                 else
                 {
-                    world = *parsed;
-                    status = "Loaded world JSON.";
+                    map = *parsed;
+                    status = "Loaded map JSON.";
                 }
             }
         }
@@ -534,7 +534,7 @@ int main()
         {
             try
             {
-                (void)core::Game::from_json(world_to_json(world));
+                (void)core::Game::from_json(map_to_json(map));
                 status = "Core parser validation passed.";
             }
             catch (const std::exception& ex)
@@ -548,11 +548,11 @@ int main()
         ImGui::End();
 
         ImGui::Begin("Grid");
-        for (int y = 0; y < world.height; ++y)
+        for (int y = 0; y < map.height; ++y)
         {
-            for (int x = 0; x < world.width; ++x)
+            for (int x = 0; x < map.width; ++x)
             {
-                Cell& cell = world.at(x, y);
+                Cell& cell = map.at(x, y);
                 const char glyph = glyph_for_cell(cell);
                 char label[32];
                 std::snprintf(label, sizeof(label), "%c##%d_%d", glyph, x, y);
@@ -560,7 +560,7 @@ int main()
                 if (ImGui::Button(label, ImVec2(28.0f, 28.0f)))
                 {
                     cell = build_cell_from_brush(brush);
-                    if (cell.kind == TileKind::Player) ensure_single_player(world, x, y);
+                    if (cell.kind == TileKind::Player) ensure_single_player(map, x, y);
                 }
 
                 if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
@@ -568,7 +568,7 @@ int main()
                     cell = Cell {};
                 }
 
-                if (x + 1 < world.width) ImGui::SameLine();
+                if (x + 1 < map.width) ImGui::SameLine();
             }
         }
         ImGui::End();

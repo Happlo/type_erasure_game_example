@@ -1,4 +1,4 @@
-#include "world_io.hpp"
+#include "map_io.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -6,7 +6,7 @@
 #include <string>
 #include <unordered_set>
 
-namespace core::world_io
+namespace core::map_io
 {
 namespace
 {
@@ -93,7 +93,7 @@ json tile_from_object(const internal::Object& object, int x, int y)
 }
 }  // namespace
 
-internal::World world_from_json(std::string_view json_text)
+internal::Map map_from_json(std::string_view json_text)
 {
     json root;
     try
@@ -102,17 +102,17 @@ internal::World world_from_json(std::string_view json_text)
     }
     catch (const std::exception& ex)
     {
-        throw std::runtime_error(std::string("Invalid world JSON: ") + ex.what());
+        throw std::runtime_error(std::string("Invalid map JSON: ") + ex.what());
     }
 
     const int width = root.at("size").at("width").get<int>();
     const int height = root.at("size").at("height").get<int>();
-    if (width <= 0 || height <= 0) throw std::runtime_error("World size must be positive");
+    if (width <= 0 || height <= 0) throw std::runtime_error("Map size must be positive");
 
-    internal::World world;
-    world.commits_left = root.value("resources", json::object()).value("commits", 6);
-    world.undos_left = root.value("resources", json::object()).value("undos", 6);
-    world.grid.assign(static_cast<size_t>(height), std::vector<internal::Object>(static_cast<size_t>(width), internal::Empty {}));
+    internal::Map map;
+    map.commits_left = root.value("resources", json::object()).value("commits", 6);
+    map.undos_left = root.value("resources", json::object()).value("undos", 6);
+    map.grid.assign(static_cast<size_t>(height), std::vector<internal::Object>(static_cast<size_t>(width), internal::Empty {}));
 
     std::unordered_set<long long> occupied;
     const auto& tiles = root.at("tiles");
@@ -122,38 +122,38 @@ internal::World world_from_json(std::string_view json_text)
         const int y = tile.at("y").get<int>();
         if (x < 0 || y < 0 || x >= width || y >= height)
         {
-            throw std::runtime_error("Tile is out of world bounds");
+            throw std::runtime_error("Tile is out of map bounds");
         }
 
         const long long key = (static_cast<long long>(y) << 32) | static_cast<unsigned int>(x);
         if (occupied.count(key) != 0) throw std::runtime_error("Multiple tiles at the same position");
         occupied.insert(key);
-        world.grid[y][x] = object_from_tile(tile);
+        map.grid[y][x] = object_from_tile(tile);
     }
 
-    (void)internal::find_player(world);
-    return world;
+    (void)internal::find_player(map);
+    return map;
 }
 
-std::string world_to_json(const internal::World& world)
+std::string map_to_json(const internal::Map& map)
 {
     json root;
     root["version"] = 1;
     root["size"] = {
-        {"width", internal::grid_width(world)},
-        {"height", internal::grid_height(world)}
+        {"width", internal::grid_width(map)},
+        {"height", internal::grid_height(map)}
     };
     root["resources"] = {
-        {"commits", world.commits_left},
-        {"undos", world.undos_left}
+        {"commits", map.commits_left},
+        {"undos", map.undos_left}
     };
 
     json tiles = json::array();
-    for (int y = 0; y < internal::grid_height(world); ++y)
+    for (int y = 0; y < internal::grid_height(map); ++y)
     {
-        for (int x = 0; x < internal::grid_width(world); ++x)
+        for (int x = 0; x < internal::grid_width(map); ++x)
         {
-            const auto& obj = world.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
+            const auto& obj = map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
             const auto props = obj.properties();
             if (props.is_empty) continue;
             tiles.push_back(tile_from_object(obj, x, y));
@@ -163,4 +163,4 @@ std::string world_to_json(const internal::World& world)
     root["tiles"] = tiles;
     return root.dump(2);
 }
-}  // namespace core::world_io
+}  // namespace core::map_io

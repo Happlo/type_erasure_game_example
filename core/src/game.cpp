@@ -3,7 +3,7 @@
 #include "game_model.hpp"
 #include "grid_rules.hpp"
 #include "solution_rules.hpp"
-#include "world_io.hpp"
+#include "map_io.hpp"
 
 #include <memory>
 #include <string>
@@ -15,20 +15,20 @@ namespace
 class DefaultGame final : public Game
 {
 public:
-    explicit DefaultGame(internal::World world) : history_ {std::move(world)}
+    explicit DefaultGame(internal::Map map) : history_ {std::move(map)}
     {}
 
     bool apply_event(const Event event) override
     {
-        auto& world = internal::current(history_);
+        auto& map = internal::current(history_);
         switch (event)
         {
-            case Event::MoveUp: return grid_rules::try_move_player(world, 0, -1);
-            case Event::MoveLeft: return grid_rules::try_move_player(world, -1, 0);
-            case Event::MoveDown: return grid_rules::try_move_player(world, 0, 1);
-            case Event::MoveRight: return grid_rules::try_move_player(world, 1, 0);
-            case Event::Commit: return grid_rules::world_commit(history_);
-            case Event::Undo: return grid_rules::world_undo(history_);
+            case Event::MoveUp: return grid_rules::try_move_player(map, 0, -1);
+            case Event::MoveLeft: return grid_rules::try_move_player(map, -1, 0);
+            case Event::MoveDown: return grid_rules::try_move_player(map, 0, 1);
+            case Event::MoveRight: return grid_rules::try_move_player(map, 1, 0);
+            case Event::Commit: return grid_rules::map_commit(history_);
+            case Event::Undo: return grid_rules::map_undo(history_);
         }
 
         return false;
@@ -41,25 +41,25 @@ public:
 
     std::string render() const override
     {
-        return render_world(internal::current(history_));
+        return render_map(internal::current(history_));
     }
 
     std::string to_json() const override
     {
-        return world_io::world_to_json(internal::current(history_));
+        return map_io::map_to_json(internal::current(history_));
     }
 
 private:
-    static std::string render_world(const internal::World& world)
+    static std::string render_map(const internal::Map& map)
     {
         std::string out;
-        out += "\nWorld commits/undos: " + std::to_string(world.commits_left) + "/" + std::to_string(world.undos_left) + "\n\n";
+        out += "\nMap commits/undos: " + std::to_string(map.commits_left) + "/" + std::to_string(map.undos_left) + "\n\n";
 
-        for (int y = 0; y < internal::grid_height(world); ++y)
+        for (int y = 0; y < internal::grid_height(map); ++y)
         {
-            for (int x = 0; x < internal::grid_width(world); ++x)
+            for (int x = 0; x < internal::grid_width(map); ++x)
             {
-                out.push_back(world.grid[y][x].properties().glyph);
+                out.push_back(map.grid[y][x].properties().glyph);
                 out.push_back(' ');
             }
             out.push_back('\n');
@@ -78,11 +78,11 @@ private:
 
 std::unique_ptr<Game> Game::create_default()
 {
-    return std::make_unique<DefaultGame>(internal::make_world());
+    return std::make_unique<DefaultGame>(internal::make_map());
 }
 
 std::unique_ptr<Game> Game::from_json(const std::string_view json_text)
 {
-    return std::make_unique<DefaultGame>(world_io::world_from_json(json_text));
+    return std::make_unique<DefaultGame>(map_io::map_from_json(json_text));
 }
 }  // namespace core

@@ -89,8 +89,8 @@ void show_help()
 {
     std::cout << "w/a/s/d   Move player\n";
     std::cout << "          Walk into a number to push it one cell\n";
-    std::cout << "commit    Save whole-world snapshot (costs 1 world commit)\n";
-    std::cout << "undo      Restore previous world snapshot (costs 1 world undo)\n";
+    std::cout << "commit    Save whole-map snapshot (costs 1 map commit)\n";
+    std::cout << "undo      Restore previous map snapshot (costs 1 map undo)\n";
     std::cout << "quit      Exit\n";
 }
 }  // namespace
@@ -104,11 +104,11 @@ int main(int argc, char** argv)
     }
     else if (argc == 2)
     {
-        const std::string world_path = argv[1];
-        std::ifstream input(world_path);
+        const std::string map_path = argv[1];
+        std::ifstream input(map_path);
         if (!input)
         {
-            std::cerr << "Failed to open world file: " << world_path << "\n";
+            std::cerr << "Failed to open map file: " << map_path << "\n";
             return 1;
         }
 
@@ -120,18 +120,18 @@ int main(int argc, char** argv)
         }
         catch (const std::exception& ex)
         {
-            std::cerr << "Failed to load world JSON: " << ex.what() << "\n";
+            std::cerr << "Failed to load map JSON: " << ex.what() << "\n";
             return 1;
         }
     }
     else
     {
-        std::cerr << "Usage: type_erasure [path-to-world.json]\n";
+        std::cerr << "Usage: type_erasure [path-to-map.json]\n";
         return 1;
     }
 
     std::cout << "Time Grid\n";
-    if (argc == 2) std::cout << "Loaded world from " << argv[1] << "\n";
+    if (argc == 2) std::cout << "Loaded map from " << argv[1] << "\n";
     show_help();
 
     RawModeGuard raw_mode;
@@ -157,13 +157,13 @@ int main(int argc, char** argv)
 
         if (line == "commit")
         {
-            if (!game->apply_event(core::Event::Commit)) std::cout << "Cannot commit world.\n";
+            if (!game->apply_event(core::Event::Commit)) std::cout << "Cannot commit map.\n";
             return true;
         }
 
         if (line == "undo")
         {
-            if (!game->apply_event(core::Event::Undo)) std::cout << "Cannot undo world.\n";
+            if (!game->apply_event(core::Event::Undo)) std::cout << "Cannot undo map.\n";
             return true;
         }
 

@@ -4,5 +4,5 @@
 
 namespace core::solution_rules
 {
-bool solved_equation(const internal::World& world);
+bool solved_equation(const internal::Map& map);
 }  // namespace core::solution_rules

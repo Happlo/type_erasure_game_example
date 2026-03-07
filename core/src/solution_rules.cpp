@@ -29,15 +29,15 @@ bool equation_is_correct(const std::string& equation)
 }
 }  // namespace
 
-bool solved_equation(const internal::World& world)
+bool solved_equation(const internal::Map& map)
 {
-    for (int y = 0; y < internal::grid_height(world); ++y)
+    for (int y = 0; y < internal::grid_height(map); ++y)
     {
         std::string row;
-        row.reserve(static_cast<size_t>(internal::grid_width(world)));
-        for (int x = 0; x < internal::grid_width(world); ++x)
+        row.reserve(static_cast<size_t>(internal::grid_width(map)));
+        for (int x = 0; x < internal::grid_width(map); ++x)
         {
-            row.push_back(world.grid[y][x].properties().glyph);
+            row.push_back(map.grid[y][x].properties().glyph);
         }
 
         if (row.find('=') != std::string::npos) return equation_is_correct(row);

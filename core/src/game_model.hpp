@@ -196,38 +196,38 @@ private:
     bool blocks_movement_ {false};
 };
 
-struct World
+struct Map
 {
     int commits_left {6};
     int undos_left {6};
     std::vector<std::vector<Object>> grid;
 };
 
-using History = std::vector<World>;
+using History = std::vector<Map>;
 
-inline int grid_height(const World& world)
+inline int grid_height(const Map& map)
 {
-    return static_cast<int>(world.grid.size());
+    return static_cast<int>(map.grid.size());
 }
 
-inline int grid_width(const World& world)
+inline int grid_width(const Map& map)
 {
-    if (world.grid.empty()) return 0;
-    return static_cast<int>(world.grid[0].size());
+    if (map.grid.empty()) return 0;
+    return static_cast<int>(map.grid[0].size());
 }
 
-inline bool in_bounds(const World& world, const Point& point)
+inline bool in_bounds(const Map& map, const Point& point)
 {
-    return point.x >= 0 && point.y >= 0 && point.x < grid_width(world) && point.y < grid_height(world);
+    return point.x >= 0 && point.y >= 0 && point.x < grid_width(map) && point.y < grid_height(map);
 }
 
-inline Point find_player(const World& world)
+inline Point find_player(const Map& map)
 {
-    for (int y = 0; y < grid_height(world); ++y)
+    for (int y = 0; y < grid_height(map); ++y)
     {
-        for (int x = 0; x < grid_width(world); ++x)
+        for (int x = 0; x < grid_width(map); ++x)
         {
-            if (world.grid[y][x].properties().is_player) return {x, y};
+            if (map.grid[y][x].properties().is_player) return {x, y};
         }
     }
     throw std::runtime_error("Player not found");
@@ -245,35 +245,35 @@ inline void undo(History& history)
     history.pop_back();
 }
 
-inline World& current(History& history)
+inline Map& current(History& history)
 {
     assert(!history.empty());
     return history.back();
 }
 
-inline const World& current(const History& history)
+inline const Map& current(const History& history)
 {
     assert(!history.empty());
     return history.back();
 }
 
-inline World make_world()
+inline Map make_map()
 {
     constexpr size_t width = 9;
     constexpr size_t height = 7;
 
-    World world;
-    world.grid.assign(height, std::vector<Object>(width, Empty {}));
+    Map map;
+    map.grid.assign(height, std::vector<Object>(width, Empty {}));
 
-    world.grid[6][0] = MakeObject(Player {});
-    world.grid[1][2] = MakeObject('+').pushable();
-    world.grid[1][4] = MakeObject('=').pushable();
+    map.grid[6][0] = MakeObject(Player {});
+    map.grid[1][2] = MakeObject('+').pushable();
+    map.grid[1][4] = MakeObject('=').pushable();
 
-    world.grid[4][4] = MakeObject(1).pushable();
-    world.grid[5][7] = MakeObject(2).pushable();
-    world.grid[3][6] = MakeObject(3).pushable();
-    world.grid[5][2] = MakeObject(4).pushable();
+    map.grid[4][4] = MakeObject(1).pushable();
+    map.grid[5][7] = MakeObject(2).pushable();
+    map.grid[3][6] = MakeObject(3).pushable();
+    map.grid[5][2] = MakeObject(4).pushable();
 
-    return world;
+    return map;
 }
 }  // namespace core::internal

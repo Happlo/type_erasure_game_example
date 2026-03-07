@@ -19,7 +19,7 @@ add_library(core STATIC
     core/src/game.cpp
     core/src/grid_rules.cpp
     core/src/solution_rules.cpp
-    core/src/world_io.cpp
+    core/src/map_io.cpp
 )
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core/include
@@ -31,10 +31,10 @@ add_executable(type_erasure
 )
 target_link_libraries(type_erasure PRIVATE core)
 
-add_executable(world_builder
+add_executable(map_builder
     builder/main.cpp
 )
-target_link_libraries(world_builder PRIVATE
+target_link_libraries(map_builder PRIVATE
     nlohmann_json::nlohmann_json
     imgui::imgui
     glfw
