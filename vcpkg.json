@@ -1,6 +1,14 @@
 {
   "dependencies": [
     "gtest",
-    "nlohmann-json"
+    "nlohmann-json",
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "opengl3-binding"
+      ]
+    },
+    "glfw3"
   ]
 }
