@@ -1,3 +1,5 @@
+find_package(nlohmann_json CONFIG REQUIRED)
+
 add_library(core STATIC
     src/game.cpp
     src/grid_rules.cpp

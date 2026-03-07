@@ -1,3 +1,6 @@
+find_package(GTest CONFIG REQUIRED)
+enable_testing()
+
 add_executable(core_tests
     core_tests.cpp
 )
