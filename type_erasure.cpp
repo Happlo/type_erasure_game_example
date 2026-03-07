@@ -63,7 +63,7 @@ char glyph(const Empty&)
 
 char glyph(const int& x)
 {
-    if (0 < x || x > 9 )
+    if (x < 0 || 9 < x)
     {
         throw std::runtime_error("int must be between 0 and 9 to generate a glyph");
     }
