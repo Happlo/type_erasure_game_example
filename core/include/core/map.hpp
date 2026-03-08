@@ -7,10 +7,17 @@
 namespace core
 {
 
-using Symbol = char;
-struct Empty {};
+struct Empty{};
 
-using CellView = std::variant<Empty, Symbol>;
+struct Player{};
+
+struct Object{};
+
+struct CellView
+{
+    char symbol;
+    std::variant<Empty, Player, Object> properties;
+};
 
 struct MapView
 {

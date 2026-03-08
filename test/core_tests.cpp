@@ -11,8 +11,7 @@ namespace
 {
 char view_glyph(const core::CellView& cell)
 {
-    if (const auto* symbol = std::get_if<core::Symbol>(&cell)) return *symbol;
-    return ' ';
+    return cell.symbol;
 }
 
 std::vector<std::string> extract_grid(const core::MapView& view)
