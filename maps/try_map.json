@@ -9,12 +9,12 @@
     "undos": 6
   },
   "tiles": [
-    { "x": 0, "y": 6, "kind": "player", "facing": "east" },
-    { "x": 2, "y": 1, "kind": "plus", "pushable": true },
-    { "x": 4, "y": 1, "kind": "equals", "pushable": true },
-    { "x": 1, "y": 4, "kind": "number", "value": 1, "pushable": true },
-    { "x": 7, "y": 5, "kind": "number", "value": 2, "pushable": true },
-    { "x": 3, "y": 3, "kind": "number", "value": 3, "pushable": true },
-    { "x": 4, "y": 5, "kind": "number", "value": 4, "pushable": true }
+    { "x": 0, "y": 6, "symbol": "Player" },
+    { "x": 2, "y": 1, "symbol": "+", "pushable": true },
+    { "x": 4, "y": 1, "symbol": "=", "pushable": true },
+    { "x": 1, "y": 4, "symbol": "1", "pushable": true },
+    { "x": 7, "y": 5, "symbol": "2", "pushable": true },
+    { "x": 3, "y": 3, "symbol": "3", "pushable": true },
+    { "x": 4, "y": 5, "symbol": "4", "pushable": true }
   ]
 }

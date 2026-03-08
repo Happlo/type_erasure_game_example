@@ -2,7 +2,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include <cctype>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -13,47 +12,29 @@ namespace
 {
 using nlohmann::json;
 
-bool is_digit_symbol(const char symbol)
+internal::Player::Facing player_facing_from_symbol(const char symbol)
 {
-    return std::isdigit(static_cast<unsigned char>(symbol)) != 0;
-}
-
-internal::Player::Facing parse_facing(const std::string& facing)
-{
-    if (facing == "north") return internal::Player::Facing::North;
-    if (facing == "south") return internal::Player::Facing::South;
-    if (facing == "west") return internal::Player::Facing::West;
-    if (facing == "east") return internal::Player::Facing::East;
-    throw std::runtime_error("Invalid player facing: " + facing);
+    if (symbol == '^') return internal::Player::Facing::North;
+    if (symbol == 'v') return internal::Player::Facing::South;
+    if (symbol == '<') return internal::Player::Facing::West;
+    if (symbol == '>') return internal::Player::Facing::East;
+    throw std::runtime_error("Invalid player symbol; expected one of '^', 'v', '<', '>'");
 }
 
 internal::Object object_from_tile(const json& tile)
 {
-    const std::string kind = tile.at("kind").get<std::string>();
     const bool pushable = tile.value("pushable", false);
+    const std::string symbol_text = tile.at("symbol").get<std::string>();
 
-    if (kind == "empty") return internal::Object(internal::Empty {});
-    if (kind == "player")
-    {
-        const std::string facing = tile.value("facing", std::string("south"));
-        return internal::Object(internal::Player {parse_facing(facing)}, pushable);
-    }
-    if (kind == "number")
-    {
-        const int value = tile.at("value").get<int>();
-        return internal::Object(value, pushable);
-    }
-    if (kind == "plus") return internal::Object('+', pushable);
-    if (kind == "equals") return internal::Object('=', pushable);
-    if (kind == "wall") return internal::Object('#', false);
-    if (kind == "symbol")
-    {
-        const std::string glyph = tile.at("glyph").get<std::string>();
-        if (glyph.size() != 1) throw std::runtime_error("symbol glyph must be one character");
-        return internal::Object(glyph[0], pushable);
-    }
+    if (symbol_text == "Player") return internal::Object(internal::Player {}, pushable);
+    if (symbol_text.size() != 1) throw std::runtime_error("symbol must be one character or 'Player'");
 
-    throw std::runtime_error("Invalid tile kind: " + kind);
+    const char symbol = symbol_text[0];
+    if (symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>')
+    {
+        return internal::Object(internal::Player {player_facing_from_symbol(symbol)}, pushable);
+    }
+    return internal::Object(symbol, pushable);
 }
 
 json tile_from_object(const internal::Object& object, int x, int y)
@@ -61,36 +42,9 @@ json tile_from_object(const internal::Object& object, int x, int y)
     const core::CellView view = object.view();
     json tile {
         {"x", x},
-        {"y", y}
+        {"y", y},
+        {"symbol", std::string(1, view.symbol)}
     };
-
-    if (std::holds_alternative<core::Player>(view.properties))
-    {
-        tile["kind"] = "player";
-        if (view.symbol == '^') tile["facing"] = "north";
-        else if (view.symbol == 'v') tile["facing"] = "south";
-        else if (view.symbol == '<') tile["facing"] = "west";
-        else if (view.symbol == '>') tile["facing"] = "east";
-        else tile["facing"] = "south";
-    }
-    else if (const auto* props = std::get_if<core::Object>(&view.properties); props != nullptr && is_digit_symbol(view.symbol))
-    {
-        tile["kind"] = "number";
-        tile["value"] = view.symbol - '0';
-    }
-    else if (view.symbol == '+')
-    {
-        tile["kind"] = "plus";
-    }
-    else if (view.symbol == '=')
-    {
-        tile["kind"] = "equals";
-    }
-    else
-    {
-        tile["kind"] = "symbol";
-        tile["glyph"] = std::string(1, view.symbol);
-    }
 
     if (const auto* props = std::get_if<core::Object>(&view.properties); props != nullptr)
     {

@@ -110,10 +110,10 @@ TEST(CoreGameTest, GivenCustomMapJsonWhenLoadingThenMapIsBuiltFromJson)
   "size": { "width": 5, "height": 3 },
   "resources": { "commits": 2, "undos": 1 },
   "tiles": [
-    { "x": 0, "y": 2, "kind": "player", "facing": "east" },
-    { "x": 1, "y": 2, "kind": "number", "value": 4, "pushable": true },
-    { "x": 2, "y": 1, "kind": "plus", "pushable": true },
-    { "x": 3, "y": 1, "kind": "equals", "pushable": true }
+    { "x": 0, "y": 2, "symbol": ">", "pushable": false },
+    { "x": 1, "y": 2, "symbol": "4", "pushable": true },
+    { "x": 2, "y": 1, "symbol": "+", "pushable": true },
+    { "x": 3, "y": 1, "symbol": "=", "pushable": true }
   ]
 })";
 
@@ -140,9 +140,9 @@ TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesMap)
   "size": { "width": 4, "height": 3 },
   "resources": { "commits": 3, "undos": 7 },
   "tiles": [
-    { "x": 0, "y": 2, "kind": "player", "facing": "north" },
-    { "x": 1, "y": 2, "kind": "number", "value": 2, "pushable": true },
-    { "x": 1, "y": 1, "kind": "symbol", "glyph": "*" }
+    { "x": 0, "y": 2, "symbol": "^" },
+    { "x": 1, "y": 2, "symbol": "2", "pushable": true },
+    { "x": 1, "y": 1, "symbol": "*" }
   ]
 })");
 
