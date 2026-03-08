@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cctype>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -11,6 +12,11 @@ namespace core::map_io
 namespace
 {
 using nlohmann::json;
+
+bool is_digit_symbol(const char symbol)
+{
+    return std::isdigit(static_cast<unsigned char>(symbol)) != 0;
+}
 
 internal::Player::Facing parse_facing(const std::string& facing)
 {
@@ -25,27 +31,26 @@ internal::Object object_from_tile(const json& tile)
 {
     const std::string kind = tile.at("kind").get<std::string>();
     const bool pushable = tile.value("pushable", false);
-    const bool blocking = tile.value("blocking", false);
 
     if (kind == "empty") return internal::Object(internal::Empty {});
     if (kind == "player")
     {
         const std::string facing = tile.value("facing", std::string("south"));
-        return internal::Object(internal::Player {parse_facing(facing)}, pushable, blocking);
+        return internal::Object(internal::Player {parse_facing(facing)}, pushable);
     }
     if (kind == "number")
     {
         const int value = tile.at("value").get<int>();
-        return internal::Object(value, pushable, blocking);
+        return internal::Object(value, pushable);
     }
-    if (kind == "plus") return internal::Object('+', pushable, blocking);
-    if (kind == "equals") return internal::Object('=', pushable, blocking);
-    if (kind == "wall") return internal::Object('#', pushable, true);
+    if (kind == "plus") return internal::Object('+', pushable);
+    if (kind == "equals") return internal::Object('=', pushable);
+    if (kind == "wall") return internal::Object('#', false);
     if (kind == "symbol")
     {
         const std::string glyph = tile.at("glyph").get<std::string>();
         if (glyph.size() != 1) throw std::runtime_error("symbol glyph must be one character");
-        return internal::Object(glyph[0], pushable, blocking);
+        return internal::Object(glyph[0], pushable);
     }
 
     throw std::runtime_error("Invalid tile kind: " + kind);
@@ -53,42 +58,44 @@ internal::Object object_from_tile(const json& tile)
 
 json tile_from_object(const internal::Object& object, int x, int y)
 {
-    const auto props = object.properties();
+    const core::CellView view = object.view();
     json tile {
         {"x", x},
         {"y", y}
     };
 
-    if (props.is_player)
+    if (std::holds_alternative<core::Player>(view.properties))
     {
         tile["kind"] = "player";
-        if (props.glyph == '^') tile["facing"] = "north";
-        else if (props.glyph == 'v') tile["facing"] = "south";
-        else if (props.glyph == '<') tile["facing"] = "west";
-        else if (props.glyph == '>') tile["facing"] = "east";
+        if (view.symbol == '^') tile["facing"] = "north";
+        else if (view.symbol == 'v') tile["facing"] = "south";
+        else if (view.symbol == '<') tile["facing"] = "west";
+        else if (view.symbol == '>') tile["facing"] = "east";
         else tile["facing"] = "south";
     }
-    else if (props.number_value >= 0)
+    else if (const auto* props = std::get_if<core::Object>(&view.properties); props != nullptr && is_digit_symbol(view.symbol))
     {
         tile["kind"] = "number";
-        tile["value"] = props.number_value;
+        tile["value"] = view.symbol - '0';
     }
-    else if (props.glyph == '+')
+    else if (view.symbol == '+')
     {
         tile["kind"] = "plus";
     }
-    else if (props.glyph == '=')
+    else if (view.symbol == '=')
     {
         tile["kind"] = "equals";
     }
     else
     {
         tile["kind"] = "symbol";
-        tile["glyph"] = std::string(1, props.glyph);
+        tile["glyph"] = std::string(1, view.symbol);
     }
 
-    if (props.is_pushable) tile["pushable"] = true;
-    if (props.blocks_movement) tile["blocking"] = true;
+    if (const auto* props = std::get_if<core::Object>(&view.properties); props != nullptr)
+    {
+        if (props->is_pushable) tile["pushable"] = true;
+    }
     return tile;
 }
 }  // namespace
@@ -154,8 +161,7 @@ std::string map_to_json(const internal::Map& map)
         for (int x = 0; x < internal::grid_width(map); ++x)
         {
             const auto& obj = map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
-            const auto props = obj.properties();
-            if (props.is_empty) continue;
+            if (std::holds_alternative<core::Empty>(obj.view().properties)) continue;
             tiles.push_back(tile_from_object(obj, x, y));
         }
     }

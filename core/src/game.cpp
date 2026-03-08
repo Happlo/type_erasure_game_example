@@ -62,11 +62,7 @@ private:
         {
             for (int x = 0; x < view.width; ++x)
             {
-                const auto props = map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].properties();
-                CellView cell {.symbol = props.glyph, .properties = Object {}};
-                if (props.is_empty) cell.properties = Empty {};
-                else if (props.is_player) cell.properties = Player {};
-                view.cells.push_back(cell);
+                view.cells.push_back(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view());
             }
         }
 

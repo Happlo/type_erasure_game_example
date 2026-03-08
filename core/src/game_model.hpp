@@ -1,9 +1,12 @@
 #pragma once
 
+#include "core/map.hpp"
+
 #include <cassert>
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace core::internal
@@ -71,89 +74,60 @@ inline char glyph(const char& value)
 }
 
 template <typename T>
-bool is_empty(const T&)
+core::CellView view(const T& value, bool is_pushable)
 {
-    return false;
+    return {
+        .symbol = glyph(value),
+        .properties = core::Object {
+            .is_pushable = is_pushable
+        }
+    };
 }
 
-inline bool is_empty(const Empty&)
+inline core::CellView view(const Empty& value, bool)
 {
-    return true;
+    return {.symbol = glyph(value), .properties = core::Empty {}};
 }
 
-template <typename T>
-bool is_player(const T&)
+inline core::CellView view(const Player& value, bool)
 {
-    return false;
-}
-
-inline bool is_player(const Player&)
-{
-    return true;
-}
-
-template <typename T>
-int number_value(const T&)
-{
-    return -1;
-}
-
-inline int number_value(const int& value)
-{
-    return value;
-}
-
-struct ObjectProperties
-{
-    char glyph {'?'};
-    bool is_empty {false};
-    bool is_player {false};
-    bool is_pushable {false};
-    bool blocks_movement {false};
-    int number_value {-1};
-};
-
-template <typename T>
-ObjectProperties create_properties(const T& value, bool is_pushable, bool blocks_movement)
-{
-    return {glyph(value), is_empty(value), is_player(value), is_pushable, blocks_movement, number_value(value)};
+    return {.symbol = glyph(value), .properties = core::Player {}};
 }
 
 class Object
 {
 public:
     template <typename T>
-    Object(T value, bool is_pushable = false, bool blocks_movement = false)
-        : self_(std::make_shared<Model<T>>(std::move(value), is_pushable, blocks_movement))
+    Object(T value, bool is_pushable = false)
+        : self_(std::make_shared<Model<T>>(std::move(value), is_pushable))
     {}
 
-    ObjectProperties properties() const
+    core::CellView view() const
     {
-        return self_->properties_();
+        return self_->view_();
     }
 
 private:
     struct Concept
     {
         virtual ~Concept() = default;
-        virtual ObjectProperties properties_() const = 0;
+        virtual core::CellView view_() const = 0;
     };
 
     template <typename T>
     struct Model : Concept
     {
-        explicit Model(T value, bool is_pushable, bool blocks_movement) : data_(std::move(value))
-        {
-            properties = create_properties(data_, is_pushable, blocks_movement);
-        }
+        explicit Model(T value, bool is_pushable) : data_(std::move(value)), is_pushable_(is_pushable)
+        {}
 
-        ObjectProperties properties_() const override
+        core::CellView view_() const override
         {
-            return create_properties(data_, properties.is_pushable, properties.blocks_movement);
+            using core::internal::view;
+            return view(data_, is_pushable_);
         }
 
         T data_;
-        ObjectProperties properties {};
+        bool is_pushable_ {false};
     };
 
     std::shared_ptr<const Concept> self_;
@@ -173,16 +147,9 @@ public:
         return out;
     }
 
-    MakeObject blocking() const
-    {
-        MakeObject out = *this;
-        out.blocks_movement_ = true;
-        return out;
-    }
-
     Object build() &&
     {
-        return Object(std::move(value_), is_pushable_, blocks_movement_);
+        return Object(std::move(value_), is_pushable_);
     }
 
     operator Object() &&
@@ -193,7 +160,6 @@ public:
 private:
     T value_;
     bool is_pushable_ {false};
-    bool blocks_movement_ {false};
 };
 
 struct Map
@@ -227,7 +193,7 @@ inline Point find_player(const Map& map)
     {
         for (int x = 0; x < grid_width(map); ++x)
         {
-            if (map.grid[y][x].properties().is_player) return {x, y};
+            if (std::holds_alternative<core::Player>(map.grid[y][x].view().properties)) return {x, y};
         }
     }
     throw std::runtime_error("Player not found");

@@ -141,8 +141,8 @@ TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesMap)
   "resources": { "commits": 3, "undos": 7 },
   "tiles": [
     { "x": 0, "y": 2, "kind": "player", "facing": "north" },
-    { "x": 1, "y": 2, "kind": "number", "value": 2, "pushable": true, "blocking": true },
-    { "x": 1, "y": 1, "kind": "symbol", "glyph": "*", "blocking": true }
+    { "x": 1, "y": 2, "kind": "number", "value": 2, "pushable": true },
+    { "x": 1, "y": 1, "kind": "symbol", "glyph": "*" }
   ]
 })");
 

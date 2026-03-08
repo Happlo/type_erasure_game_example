@@ -11,7 +11,10 @@ struct Empty{};
 
 struct Player{};
 
-struct Object{};
+struct Object
+{
+    bool is_pushable {false};
+};
 
 struct CellView
 {

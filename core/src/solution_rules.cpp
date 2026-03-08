@@ -37,7 +37,7 @@ bool solved_equation(const internal::Map& map)
         row.reserve(static_cast<size_t>(internal::grid_width(map)));
         for (int x = 0; x < internal::grid_width(map); ++x)
         {
-            row.push_back(map.grid[y][x].properties().glyph);
+            row.push_back(map.grid[y][x].view().symbol);
         }
 
         if (row.find('=') != std::string::npos) return equation_is_correct(row);

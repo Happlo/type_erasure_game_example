@@ -11,23 +11,23 @@ bool try_move_player(internal::Map& map, int dx, int dy)
     if (!internal::in_bounds(map, next)) return false;
 
     const internal::Object next_object = map.grid[next.y][next.x];
-    const auto next_props = next_object.properties();
-    if (next_props.blocks_movement) return false;
+    const auto next_view = next_object.view();
+    const auto* next_object_props = std::get_if<core::Object>(&next_view.properties);
 
-    if (next_props.is_empty)
+    if (std::holds_alternative<core::Empty>(next_view.properties))
     {
         map.grid[player.y][player.x] = internal::Object(internal::Empty {});
         map.grid[next.y][next.x] = internal::Object(moved_player);
         return true;
     }
 
-    if (!next_props.is_pushable) return false;
+    if (next_object_props == nullptr || !next_object_props->is_pushable) return false;
 
     const internal::Point pushed {next.x + dx, next.y + dy};
     if (!internal::in_bounds(map, pushed)) return false;
 
     const internal::Object pushed_object = map.grid[pushed.y][pushed.x];
-    if (!pushed_object.properties().is_empty) return false;
+    if (!std::holds_alternative<core::Empty>(pushed_object.view().properties)) return false;
 
     map.grid[pushed.y][pushed.x] = next_object;
     map.grid[next.y][next.x] = internal::Object(moved_player);
