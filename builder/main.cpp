@@ -17,25 +17,11 @@
 #include <string>
 #include <vector>
 
-enum class TileKind
-{
-    Empty,
-    Player,
-    Number,
-    Plus,
-    Equals,
-    Wall,
-    Symbol
-};
-
 struct Cell
 {
-    TileKind kind {TileKind::Empty};
-    bool pushable {false};
-    bool blocking {false};
-    int number_value {0};
+    bool occupied {false};
     char symbol {'*'};
-    int facing_index {1};  // 0=north,1=south,2=west,3=east
+    bool pushable {false};
 };
 
 struct BuilderMap
@@ -74,81 +60,26 @@ struct BuilderMap
 
 struct Brush
 {
-    TileKind kind {TileKind::Empty};
-    bool pushable {false};
-    bool blocking {false};
-    int number_value {1};
     char symbol {'*'};
-    int facing_index {1};
+    bool pushable {false};
 };
 
-const char* facing_to_string(int facing_index)
+bool is_player_symbol(const char symbol)
 {
-    switch (facing_index)
-    {
-        case 0: return "north";
-        case 1: return "south";
-        case 2: return "west";
-        case 3: return "east";
-        default: return "south";
-    }
+    return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
 }
 
 char glyph_for_cell(const Cell& cell)
 {
-    switch (cell.kind)
-    {
-        case TileKind::Empty: return ' ';
-        case TileKind::Player:
-            if (cell.facing_index == 0) return '^';
-            if (cell.facing_index == 1) return 'v';
-            if (cell.facing_index == 2) return '<';
-            if (cell.facing_index == 3) return '>';
-            return 'v';
-        case TileKind::Number: return static_cast<char>('0' + cell.number_value);
-        case TileKind::Plus: return '+';
-        case TileKind::Equals: return '=';
-        case TileKind::Wall: return '#';
-        case TileKind::Symbol: return cell.symbol;
-    }
-    return '?';
-}
-
-const char* kind_label(TileKind kind)
-{
-    switch (kind)
-    {
-        case TileKind::Empty: return "Empty";
-        case TileKind::Player: return "Player";
-        case TileKind::Number: return "Number";
-        case TileKind::Plus: return "Plus";
-        case TileKind::Equals: return "Equals";
-        case TileKind::Wall: return "Wall";
-        case TileKind::Symbol: return "Symbol";
-    }
-    return "Unknown";
+    return cell.occupied ? cell.symbol : ' ';
 }
 
 Cell build_cell_from_brush(const Brush& brush)
 {
     Cell cell;
-    cell.kind = brush.kind;
-    cell.pushable = brush.pushable;
-    cell.blocking = brush.blocking;
-    cell.number_value = brush.number_value;
+    cell.occupied = true;
     cell.symbol = brush.symbol;
-    cell.facing_index = brush.facing_index;
-
-    if (cell.kind == TileKind::Wall)
-    {
-        cell.blocking = true;
-    }
-    if (cell.kind == TileKind::Empty)
-    {
-        cell.pushable = false;
-        cell.blocking = false;
-    }
-
+    cell.pushable = brush.pushable;
     return cell;
 }
 
@@ -160,7 +91,7 @@ void ensure_single_player(BuilderMap& map, int keep_x, int keep_y)
         {
             if (x == keep_x && y == keep_y) continue;
             Cell& cell = map.at(x, y);
-            if (cell.kind == TileKind::Player)
+            if (cell.occupied && is_player_symbol(cell.symbol))
             {
                 cell = Cell {};
             }
@@ -173,35 +104,13 @@ nlohmann::json tile_to_json(const Cell& cell, int x, int y)
     nlohmann::json tile;
     tile["x"] = x;
     tile["y"] = y;
-
-    switch (cell.kind)
-    {
-        case TileKind::Player:
-            tile["kind"] = "player";
-            tile["facing"] = facing_to_string(cell.facing_index);
-            break;
-        case TileKind::Number:
-            tile["kind"] = "number";
-            tile["value"] = cell.number_value;
-            break;
-        case TileKind::Plus: tile["kind"] = "plus"; break;
-        case TileKind::Equals: tile["kind"] = "equals"; break;
-        case TileKind::Wall: tile["kind"] = "wall"; break;
-        case TileKind::Symbol:
-            tile["kind"] = "symbol";
-            tile["glyph"] = std::string(1, cell.symbol);
-            break;
-        case TileKind::Empty:
-            tile["kind"] = "empty";
-            break;
-    }
+    tile["symbol"] = std::string(1, glyph_for_cell(cell));
 
     if (cell.pushable) tile["pushable"] = true;
-    if (cell.blocking && cell.kind != TileKind::Wall) tile["blocking"] = true;
     return tile;
 }
 
-std::string map_to_json(const BuilderMap& map)
+nlohmann::json map_to_json_object(const BuilderMap& map)
 {
     nlohmann::json root;
     root["version"] = 1;
@@ -214,116 +123,52 @@ std::string map_to_json(const BuilderMap& map)
         for (int x = 0; x < map.width; ++x)
         {
             const Cell& cell = map.at(x, y);
-            if (cell.kind == TileKind::Empty) continue;
+            if (!cell.occupied) continue;
             root["tiles"].push_back(tile_to_json(cell, x, y));
         }
     }
 
-    return root.dump(2);
+    return root;
+}
+
+std::string map_to_json(const BuilderMap& map)
+{
+    return map_to_json_object(map).dump(2);
 }
 
 std::optional<BuilderMap> map_from_json(const std::string& text, std::string& error_message)
 {
     try
     {
-        const nlohmann::json root = nlohmann::json::parse(text);
-        BuilderMap map;
-        map.width = root.at("size").at("width").get<int>();
-        map.height = root.at("size").at("height").get<int>();
-        if (map.width <= 0 || map.height <= 0)
-        {
-            error_message = "Map width and height must be > 0";
-            return std::nullopt;
-        }
+        std::unique_ptr<core::Game> game = core::Game::from_json(text);
+        const core::MapView view = game->view();
 
-        map.commits = root.value("resources", nlohmann::json::object()).value("commits", 6);
-        map.undos = root.value("resources", nlohmann::json::object()).value("undos", 6);
+        BuilderMap map;
+        map.width = view.width;
+        map.height = view.height;
+        map.commits = view.commits_left;
+        map.undos = view.undos_left;
         map.cells.assign(static_cast<size_t>(map.width * map.height), Cell {});
 
-        for (const auto& tile : root.at("tiles"))
+        for (int y = 0; y < map.height; ++y)
         {
-            const int x = tile.at("x").get<int>();
-            const int y = tile.at("y").get<int>();
-            if (x < 0 || y < 0 || x >= map.width || y >= map.height)
+            for (int x = 0; x < map.width; ++x)
             {
-                error_message = "Tile is out of bounds";
-                return std::nullopt;
-            }
-
-            Cell cell;
-            const std::string kind = tile.at("kind").get<std::string>();
-            if (kind == "player")
-            {
-                cell.kind = TileKind::Player;
-                const std::string facing = tile.value("facing", std::string("south"));
-                if (facing == "north") cell.facing_index = 0;
-                else if (facing == "south") cell.facing_index = 1;
-                else if (facing == "west") cell.facing_index = 2;
-                else if (facing == "east") cell.facing_index = 3;
-                else
+                const core::CellView& cell_view = view.at(x, y);
+                if (std::holds_alternative<core::Empty>(cell_view.properties))
                 {
-                    error_message = "Invalid player facing";
-                    return std::nullopt;
+                    map.at(x, y) = Cell {};
+                    continue;
                 }
-            }
-            else if (kind == "number")
-            {
-                cell.kind = TileKind::Number;
-                cell.number_value = tile.at("value").get<int>();
-                if (cell.number_value < 0 || cell.number_value > 9)
+                Cell cell;
+                cell.occupied = true;
+                cell.symbol = cell_view.symbol;
+                if (const auto* obj = std::get_if<core::Object>(&cell_view.properties))
                 {
-                    error_message = "Number tile value must be 0..9";
-                    return std::nullopt;
+                    cell.pushable = obj->is_pushable;
                 }
+                map.at(x, y) = cell;
             }
-            else if (kind == "plus") cell.kind = TileKind::Plus;
-            else if (kind == "equals") cell.kind = TileKind::Equals;
-            else if (kind == "wall") cell.kind = TileKind::Wall;
-            else if (kind == "symbol")
-            {
-                cell.kind = TileKind::Symbol;
-                const std::string glyph = tile.value("glyph", std::string("*"));
-                if (glyph.size() != 1)
-                {
-                    error_message = "Symbol glyph must be exactly one character";
-                    return std::nullopt;
-                }
-                cell.symbol = glyph[0];
-            }
-            else if (kind == "empty")
-            {
-                cell.kind = TileKind::Empty;
-            }
-            else
-            {
-                error_message = "Unknown tile kind: " + kind;
-                return std::nullopt;
-            }
-
-            cell.pushable = tile.value("pushable", false);
-            cell.blocking = tile.value("blocking", false);
-            if (cell.kind == TileKind::Wall) cell.blocking = true;
-
-            map.at(x, y) = cell;
-        }
-
-        bool found_player = false;
-        for (const Cell& cell : map.cells)
-        {
-            if (cell.kind == TileKind::Player)
-            {
-                if (found_player)
-                {
-                    error_message = "Map must have exactly one player";
-                    return std::nullopt;
-                }
-                found_player = true;
-            }
-        }
-        if (!found_player)
-        {
-            error_message = "Map must contain a player";
-            return std::nullopt;
         }
 
         return map;
@@ -340,29 +185,32 @@ BuilderMap make_default_map()
     BuilderMap map;
     map.cells.assign(static_cast<size_t>(map.width * map.height), Cell {});
 
-    map.at(0, 6).kind = TileKind::Player;
-    map.at(0, 6).facing_index = 1;
+    map.at(0, 6).occupied = true;
+    map.at(0, 6).symbol = 'v';
+    map.at(0, 6).pushable = false;
 
-    map.at(2, 1).kind = TileKind::Plus;
+    map.at(2, 1).occupied = true;
+    map.at(2, 1).symbol = '+';
     map.at(2, 1).pushable = true;
 
-    map.at(4, 1).kind = TileKind::Equals;
+    map.at(4, 1).occupied = true;
+    map.at(4, 1).symbol = '=';
     map.at(4, 1).pushable = true;
 
-    map.at(4, 4).kind = TileKind::Number;
-    map.at(4, 4).number_value = 1;
+    map.at(4, 4).occupied = true;
+    map.at(4, 4).symbol = '1';
     map.at(4, 4).pushable = true;
 
-    map.at(7, 5).kind = TileKind::Number;
-    map.at(7, 5).number_value = 2;
+    map.at(7, 5).occupied = true;
+    map.at(7, 5).symbol = '2';
     map.at(7, 5).pushable = true;
 
-    map.at(6, 3).kind = TileKind::Number;
-    map.at(6, 3).number_value = 3;
+    map.at(6, 3).occupied = true;
+    map.at(6, 3).symbol = '3';
     map.at(6, 3).pushable = true;
 
-    map.at(2, 5).kind = TileKind::Number;
-    map.at(2, 5).number_value = 4;
+    map.at(2, 5).occupied = true;
+    map.at(2, 5).symbol = '4';
     map.at(2, 5).pushable = true;
 
     return map;
@@ -417,6 +265,8 @@ int main()
 
     BuilderMap map = make_default_map();
     Brush brush;
+    int resize_width = map.width;
+    int resize_height = map.height;
 
     std::array<char, 256> file_path {};
     std::snprintf(file_path.data(), file_path.size(), "%s", "maps/try_map.json");
@@ -433,17 +283,15 @@ int main()
 
         ImGui::Begin("Tools");
 
-        int new_width = map.width;
-        int new_height = map.height;
-        ImGui::InputInt("Width", &new_width);
-        ImGui::InputInt("Height", &new_height);
-        if (new_width < 1) new_width = 1;
-        if (new_height < 1) new_height = 1;
-        if (new_width > 64) new_width = 64;
-        if (new_height > 64) new_height = 64;
+        ImGui::InputInt("Width", &resize_width);
+        ImGui::InputInt("Height", &resize_height);
+        if (resize_width < 1) resize_width = 1;
+        if (resize_height < 1) resize_height = 1;
+        if (resize_width > 64) resize_width = 64;
+        if (resize_height > 64) resize_height = 64;
         if (ImGui::Button("Resize Map"))
         {
-            map.resize(new_width, new_height);
+            map.resize(resize_width, resize_height);
             status = "Resized map.";
         }
 
@@ -452,45 +300,11 @@ int main()
 
         ImGui::Separator();
         ImGui::Text("Brush");
-        const std::array<TileKind, 7> kinds {
-            TileKind::Empty,
-            TileKind::Player,
-            TileKind::Number,
-            TileKind::Plus,
-            TileKind::Equals,
-            TileKind::Wall,
-            TileKind::Symbol
-        };
-
-        for (TileKind kind : kinds)
-        {
-            const bool selected = brush.kind == kind;
-            if (ImGui::Selectable(kind_label(kind), selected))
-            {
-                brush.kind = kind;
-            }
-        }
-
-        if (brush.kind == TileKind::Number)
-        {
-            ImGui::InputInt("Number Value", &brush.number_value);
-            if (brush.number_value < 0) brush.number_value = 0;
-            if (brush.number_value > 9) brush.number_value = 9;
-        }
-        if (brush.kind == TileKind::Symbol)
-        {
-            char symbol_buffer[2] {brush.symbol, '\0'};
-            ImGui::InputText("Symbol", symbol_buffer, sizeof(symbol_buffer));
-            brush.symbol = symbol_buffer[0] == '\0' ? '*' : symbol_buffer[0];
-        }
-        if (brush.kind == TileKind::Player)
-        {
-            static const char* directions[] = {"north", "south", "west", "east"};
-            ImGui::Combo("Facing", &brush.facing_index, directions, 4);
-        }
-
+        char symbol_buffer[2] {brush.symbol, '\0'};
+        ImGui::InputText("Symbol", symbol_buffer, sizeof(symbol_buffer));
+        brush.symbol = symbol_buffer[0] == '\0' ? '*' : symbol_buffer[0];
         ImGui::Checkbox("Pushable", &brush.pushable);
-        ImGui::Checkbox("Blocking", &brush.blocking);
+        ImGui::TextUnformatted("Tips: use ^ v < > for player facing, 0..9 for numbers.");
 
         ImGui::Separator();
         ImGui::InputText("File", file_path.data(), file_path.size());
@@ -525,6 +339,8 @@ int main()
                 else
                 {
                     map = *parsed;
+                    resize_width = map.width;
+                    resize_height = map.height;
                     status = "Loaded map JSON.";
                 }
             }
@@ -560,7 +376,7 @@ int main()
                 if (ImGui::Button(label, ImVec2(28.0f, 28.0f)))
                 {
                     cell = build_cell_from_brush(brush);
-                    if (cell.kind == TileKind::Player) ensure_single_player(map, x, y);
+                    if (is_player_symbol(cell.symbol)) ensure_single_player(map, x, y);
                 }
 
                 if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
