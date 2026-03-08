@@ -2,11 +2,10 @@
 
 #include "game_model.hpp"
 #include "grid_rules.hpp"
-#include "solution_rules.hpp"
 #include "map_io.hpp"
+#include "solution_rules.hpp"
 
 #include <memory>
-#include <string>
 
 namespace core
 {
@@ -39,9 +38,9 @@ public:
         return solution_rules::solved_equation(internal::current(history_));
     }
 
-    std::string render() const override
+    MapView view() const override
     {
-        return render_map(internal::current(history_));
+        return build_view(internal::current(history_));
     }
 
     std::string to_json() const override
@@ -50,25 +49,26 @@ public:
     }
 
 private:
-    static std::string render_map(const internal::Map& map)
+    static MapView build_view(const internal::Map& map)
     {
-        std::string out;
-        out += "\nMap commits/undos: " + std::to_string(map.commits_left) + "/" + std::to_string(map.undos_left) + "\n\n";
+        MapView view;
+        view.width = internal::grid_width(map);
+        view.height = internal::grid_height(map);
+        view.commits_left = map.commits_left;
+        view.undos_left = map.undos_left;
+        view.cells.reserve(static_cast<size_t>(view.width * view.height));
 
-        for (int y = 0; y < internal::grid_height(map); ++y)
+        for (int y = 0; y < view.height; ++y)
         {
-            for (int x = 0; x < internal::grid_width(map); ++x)
+            for (int x = 0; x < view.width; ++x)
             {
-                out.push_back(map.grid[y][x].properties().glyph);
-                out.push_back(' ');
+                const auto props = map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].properties();
+                if (props.glyph == ' ') view.cells.push_back(Empty {});
+                else view.cells.push_back(props.glyph);
             }
-            out.push_back('\n');
         }
 
-        out += "\nCommands: w/a/s/d, commit, undo, help, quit\n";
-        out += "Goal: make the row containing '=' form a true equation.\n";
-        out += "The '+' and '=' tiles stay fixed in place.\n";
-        return out;
+        return view;
     }
 
     internal::History history_;

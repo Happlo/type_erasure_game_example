@@ -3,40 +3,34 @@
 #include <gtest/gtest.h>
 
 #include <memory>
-#include <sstream>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace
 {
-std::vector<std::string> extract_grid(const std::string& rendered)
+char view_glyph(const core::CellView& cell)
 {
-    std::istringstream in(rendered);
-    std::string line;
+    if (const auto* symbol = std::get_if<core::Symbol>(&cell)) return *symbol;
+    return ' ';
+}
+
+std::vector<std::string> extract_grid(const core::MapView& view)
+{
     std::vector<std::string> compact;
-    while (std::getline(in, line))
+    compact.reserve(static_cast<size_t>(view.height));
+
+    for (int y = 0; y < view.height; ++y)
     {
-        if (line.empty() || line.size() % 2 != 0) continue;
-        bool is_grid_row = true;
-        for (size_t i = 1; i < line.size(); i += 2)
-        {
-            if (line[i] != ' ')
-            {
-                is_grid_row = false;
-                break;
-            }
-        }
-
-        if (!is_grid_row) continue;
-
         std::string row;
-        row.reserve(line.size() / 2);
-        for (size_t i = 0; i < line.size(); i += 2)
+        row.reserve(static_cast<size_t>(view.width));
+        for (int x = 0; x < view.width; ++x)
         {
-            row.push_back(line[i]);
+            row.push_back(view_glyph(view.at(x, y)));
         }
-        compact.push_back(row);
+        compact.push_back(std::move(row));
     }
+
     return compact;
 }
 }  // namespace
@@ -47,10 +41,11 @@ TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
     std::unique_ptr<core::Game> game = core::Game::create_default();
 
     // When
-    const std::string rendered = game->render();
+    const core::MapView view = game->view();
 
     // Then
-    EXPECT_NE(rendered.find("Map commits/undos: 6/6"), std::string::npos);
+    EXPECT_EQ(view.commits_left, 6);
+    EXPECT_EQ(view.undos_left, 6);
     EXPECT_FALSE(game->solved());
 }
 
@@ -61,7 +56,7 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
 
     // When
     const bool moved = game->apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game->render());
+    const auto grid = extract_grid(game->view());
 
     // Then
     EXPECT_TRUE(moved);
@@ -77,15 +72,17 @@ TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 
     // When
     const bool committed = game->apply_event(core::Event::Commit);
-    const std::string after_commit = game->render();
+    const core::MapView after_commit = game->view();
     const bool undone = game->apply_event(core::Event::Undo);
-    const std::string after_undo = game->render();
+    const core::MapView after_undo = game->view();
 
     // Then
     EXPECT_TRUE(committed);
-    EXPECT_NE(after_commit.find("Map commits/undos: 5/6"), std::string::npos);
+    EXPECT_EQ(after_commit.commits_left, 5);
+    EXPECT_EQ(after_commit.undos_left, 6);
     EXPECT_TRUE(undone);
-    EXPECT_NE(after_undo.find("Map commits/undos: 6/5"), std::string::npos);
+    EXPECT_EQ(after_undo.commits_left, 6);
+    EXPECT_EQ(after_undo.undos_left, 5);
 }
 
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
@@ -97,7 +94,7 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     EXPECT_TRUE(game->apply_event(core::Event::MoveUp));
     EXPECT_TRUE(game->apply_event(core::Event::MoveRight));
     const bool pushed = game->apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game->render());
+    const auto grid = extract_grid(game->view());
 
     // Then
     EXPECT_TRUE(pushed);
@@ -123,10 +120,12 @@ TEST(CoreGameTest, GivenCustomMapJsonWhenLoadingThenMapIsBuiltFromJson)
 
     // When
     std::unique_ptr<core::Game> game = core::Game::from_json(json_map);
-    const auto grid = extract_grid(game->render());
+    const core::MapView view = game->view();
+    const auto grid = extract_grid(view);
 
     // Then
-    EXPECT_NE(game->render().find("Map commits/undos: 2/1"), std::string::npos);
+    EXPECT_EQ(view.commits_left, 2);
+    EXPECT_EQ(view.undos_left, 1);
     ASSERT_EQ(grid.size(), 3U);
     EXPECT_EQ(grid[2][0], '>');
     EXPECT_EQ(grid[2][1], '4');
@@ -153,6 +152,6 @@ TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesMap)
     std::unique_ptr<core::Game> restored = core::Game::from_json(encoded);
 
     // Then
-    EXPECT_EQ(restored->render(), original->render());
+    EXPECT_EQ(extract_grid(restored->view()), extract_grid(original->view()));
     EXPECT_EQ(restored->to_json(), encoded);
 }

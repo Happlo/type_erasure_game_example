@@ -8,6 +8,7 @@
 #include <string>
 #include <termios.h>
 #include <unistd.h>
+#include <variant>
 
 namespace
 {
@@ -93,6 +94,33 @@ void show_help()
     std::cout << "undo      Restore previous map snapshot (costs 1 map undo)\n";
     std::cout << "quit      Exit\n";
 }
+
+char view_glyph(const core::CellView& cell)
+{
+    if (const auto* symbol = std::get_if<core::Symbol>(&cell)) return *symbol;
+    return ' ';
+}
+
+std::string render_view(const core::MapView& view)
+{
+    std::string out;
+    out += "\nMap commits/undos: " + std::to_string(view.commits_left) + "/" + std::to_string(view.undos_left) + "\n\n";
+
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            out.push_back(view_glyph(view.at(x, y)));
+            out.push_back(' ');
+        }
+        out.push_back('\n');
+    }
+
+    out += "\nCommands: w/a/s/d, commit, undo, help, quit\n";
+    out += "Goal: make the row containing '=' form a true equation.\n";
+    out += "The '+' and '=' tiles stay fixed in place.\n";
+    return out;
+}
 }  // namespace
 
 int main(int argc, char** argv)
@@ -173,7 +201,7 @@ int main(int argc, char** argv)
 
     while (true)
     {
-        std::cout << game->render();
+        std::cout << render_view(game->view());
 
         if (game->solved())
         {
