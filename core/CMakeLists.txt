@@ -5,6 +5,7 @@ add_library(core STATIC
     src/grid_rules.cpp
     src/solution_rules.cpp
     src/map_io.cpp
+    src/map_builder.cpp
 )
 
 target_include_directories(core PUBLIC
