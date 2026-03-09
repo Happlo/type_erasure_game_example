@@ -11,6 +11,25 @@ namespace core
 {
 namespace
 {
+std::string map_to_grid_text(const internal::Map& map)
+{
+    std::string out;
+    const int width = internal::grid_width(map);
+    const int height = internal::grid_height(map);
+    out.reserve(static_cast<size_t>(height * (width + 1)));
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            out.push_back(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view().symbol);
+        }
+        if (y + 1 < height) out.push_back('\n');
+    }
+
+    return out;
+}
+
 class DefaultGame final : public Game
 {
 public:
@@ -20,6 +39,8 @@ public:
     bool apply_event(const Event event) override
     {
         auto& map = internal::current(history_);
+        const bool applied = [&]()
+        {
         switch (event)
         {
             case Event::MoveUp: return grid_rules::try_move_player(map, 0, -1);
@@ -31,11 +52,15 @@ public:
         }
 
         return false;
+        }();
+
+        solved_ = solution_rules::solved_equation(map_to_grid_text(internal::current(history_)));
+        return applied;
     }
 
     bool solved() const override
     {
-        return solution_rules::solved_equation(internal::current(history_));
+        return solved_;
     }
 
     MapView view() const override
@@ -70,6 +95,7 @@ private:
     }
 
     internal::History history_;
+    bool solved_ {solution_rules::solved_equation(map_to_grid_text(internal::current(history_)))};
 };
 
 }  // namespace

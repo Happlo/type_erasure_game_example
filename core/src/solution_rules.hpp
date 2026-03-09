@@ -1,8 +1,8 @@
 #pragma once
 
-#include "game_model.hpp"
+#include <string_view>
 
 namespace core::solution_rules
 {
-bool solved_equation(const internal::Map& map);
+bool solved_equation(std::string_view grid_text);
 }  // namespace core::solution_rules

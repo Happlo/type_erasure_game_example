@@ -29,18 +29,23 @@ bool equation_is_correct(const std::string& equation)
 }
 }  // namespace
 
-bool solved_equation(const internal::Map& map)
+bool solved_equation(const std::string_view grid_text)
 {
-    for (int y = 0; y < internal::grid_height(map); ++y)
+    size_t line_start = 0;
+    while (line_start <= grid_text.size())
     {
-        std::string row;
-        row.reserve(static_cast<size_t>(internal::grid_width(map)));
-        for (int x = 0; x < internal::grid_width(map); ++x)
+        const size_t line_end = grid_text.find('\n', line_start);
+        const size_t end = (line_end == std::string_view::npos) ? grid_text.size() : line_end;
+        std::string line(grid_text.substr(line_start, end - line_start));
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+
+        if (line.find('=') != std::string::npos)
         {
-            row.push_back(map.grid[y][x].view().symbol);
+            return equation_is_correct(line);
         }
 
-        if (row.find('=') != std::string::npos) return equation_is_correct(row);
+        if (line_end == std::string_view::npos) break;
+        line_start = line_end + 1;
     }
 
     return false;
