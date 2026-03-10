@@ -3,63 +3,59 @@
 #include <gtest/gtest.h>
 
 #include <string>
-#include <vector>
 
-namespace
+class SolvedEquationSuccessTest : public ::testing::TestWithParam<std::string>
 {
-std::string grid_to_text(const std::vector<std::string>& rows)
-{
-    std::string out;
-    for (size_t i = 0; i < rows.size(); ++i)
-    {
-        out += rows[i];
-        if (i + 1 < rows.size()) out.push_back('\n');
-    }
-    return out;
-}
-}  // namespace
+};
 
-TEST(SolutionRulesTest, GivenOneLineValidEquationWhenCheckingThenReturnsTrue)
+class SolvedEquationFailureTest : public ::testing::TestWithParam<std::string>
 {
-    const std::string grid = grid_to_text({
-        "1+2=3",
-        "     ",
-        "  v  "
-    });
+};
 
-    EXPECT_TRUE(core::solution_rules::solved_equation(grid));
+TEST_P(SolvedEquationSuccessTest, ReturnsTrue)
+{
+    EXPECT_TRUE(core::solution_rules::solved_equation(GetParam()));
 }
 
-TEST(SolutionRulesTest, GivenWrongMathEquationWhenCheckingThenReturnsFalse)
+TEST_P(SolvedEquationFailureTest, ReturnsFalse)
 {
-    const std::string grid = grid_to_text({
-        "1+2=4",
-        "     ",
-        "  v  "
-    });
-
-    EXPECT_FALSE(core::solution_rules::solved_equation(grid));
+    EXPECT_FALSE(core::solution_rules::solved_equation(GetParam()));
 }
 
-TEST(SolutionRulesTest, GivenLongEquationWithTwoPlusSignsWhenCheckingThenReturnsFalse)
-{
-    const std::string grid = grid_to_text({
-        "      2      ",
-        "  2 + 1 + 3 = 4",
-        "             ",
-        "      v      "
-    });
+INSTANTIATE_TEST_SUITE_P(
+    SolutionRules,
+    SolvedEquationSuccessTest,
+    ::testing::Values(
+        "1+2=3\n"
+        "     \n"
+        "  v  \n",
+        "1+2+3=6\n",
+        "1+2+3=5+1\n",
+        "1 +  2   +3 =   6\n",
+        "1+2+3+4+5+6=21\n",
+        "1+5+4=10\n",
+        "40+60+110=210\n",
+        "7-3=4\n",
+        "7-3=5-1\n",
+        "7*3=21\n",
+        "7*5=40-5\n",
+        "20/5=4\n",
+        "20/5=2*2\n",
+        "5-10=10-15\n",
+        "1-1-1-1-1-1=1+1-2-4\n"
+    ));
 
-    EXPECT_FALSE(core::solution_rules::solved_equation(grid));
-}
-
-TEST(SolutionRulesTest, GivenNoEqualsSignWhenCheckingThenReturnsFalse)
-{
-    const std::string grid = grid_to_text({
-        "12+3 ",
-        "     ",
-        "  >  "
-    });
-
-    EXPECT_FALSE(core::solution_rules::solved_equation(grid));
-}
+INSTANTIATE_TEST_SUITE_P(
+    SolutionRules,
+    SolvedEquationFailureTest,
+    ::testing::Values(
+        "1+2=4\n"
+        "     \n"
+        "  v  \n",
+        "      2      \n"
+        "  2 + 1 + 3 = 4\n"
+        "             \n"
+        "      v      \n",
+        "12+3 \n"
+        "     \n"
+        "  >  \n"));
