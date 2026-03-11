@@ -74,26 +74,6 @@ public:
     }
 
 private:
-    static MapView build_view(const internal::Map& map)
-    {
-        MapView view;
-        view.width = internal::grid_width(map);
-        view.height = internal::grid_height(map);
-        view.commits_left = map.commits_left;
-        view.undos_left = map.undos_left;
-        view.cells.reserve(static_cast<size_t>(view.width * view.height));
-
-        for (int y = 0; y < view.height; ++y)
-        {
-            for (int x = 0; x < view.width; ++x)
-            {
-                view.cells.push_back(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view());
-            }
-        }
-
-        return view;
-    }
-
     internal::History history_;
     bool solved_ {solution_rules::solved_equation(map_to_grid_text(internal::current(history_)))};
 };

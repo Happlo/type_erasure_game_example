@@ -1,5 +1,5 @@
-#include "core/map_builder.hpp"
 #include "core/game.hpp"
+#include "core/map_builder.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -15,22 +15,24 @@
 
 namespace
 {
-bool save_file(const std::string& path, const std::string& content)
+bool save_file(const std::string &path, const std::string &content)
 {
     std::ofstream out(path);
-    if (!out) return false;
+    if (!out)
+        return false;
     out << content;
     return static_cast<bool>(out);
 }
 
-bool load_file(const std::string& path, std::string& content)
+bool load_file(const std::string &path, std::string &content)
 {
     std::ifstream in(path);
-    if (!in) return false;
+    if (!in)
+        return false;
     content.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
     return true;
 }
-}  // namespace
+} // namespace
 
 int main()
 {
@@ -43,7 +45,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    GLFWwindow* window = glfwCreateWindow(1280, 800, "Type Erasure Map Builder", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(1280, 800, "Type Erasure Map Builder", nullptr, nullptr);
     if (window == nullptr)
     {
         std::fprintf(stderr, "Failed to create GLFW window\n");
@@ -56,19 +58,19 @@ int main()
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     (void)io;
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
-    core::MapBuilder map = core::MapBuilder::make_default();
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create_default();
     core::Brush brush;
-    int resize_width = map.view.width;
-    int resize_height = map.view.height;
+    int resize_width = map->view().width;
+    int resize_height = map->view().height;
 
-    std::array<char, 256> file_path {};
+    std::array<char, 256> file_path{};
     std::snprintf(file_path.data(), file_path.size(), "%s", "maps/try_map.json");
 
     std::string status = "Ready.";
@@ -85,22 +87,30 @@ int main()
 
         ImGui::InputInt("Width", &resize_width);
         ImGui::InputInt("Height", &resize_height);
-        if (resize_width < 1) resize_width = 1;
-        if (resize_height < 1) resize_height = 1;
-        if (resize_width > 64) resize_width = 64;
-        if (resize_height > 64) resize_height = 64;
+        if (resize_width < 1)
+            resize_width = 1;
+        if (resize_height < 1)
+            resize_height = 1;
+        if (resize_width > 64)
+            resize_width = 64;
+        if (resize_height > 64)
+            resize_height = 64;
         if (ImGui::Button("Resize Map"))
         {
-            map.resize(resize_width, resize_height);
+            map->resize(resize_width, resize_height);
             status = "Resized map.";
         }
 
-        ImGui::InputInt("Commits", &map.view.commits_left);
-        ImGui::InputInt("Undos", &map.view.undos_left);
+        int commits_left = map->view().commits_left;
+        int undos_left = map->view().undos_left;
+        if (ImGui::InputInt("Commits", &commits_left))
+            map->set_commits_left(commits_left);
+        if (ImGui::InputInt("Undos", &undos_left))
+            map->set_undos_left(undos_left);
 
         ImGui::Separator();
         ImGui::Text("Brush");
-        char symbol_buffer[2] {brush.symbol, '\0'};
+        char symbol_buffer[2]{brush.symbol, '\0'};
         ImGui::InputText("Symbol", symbol_buffer, sizeof(symbol_buffer));
         brush.symbol = symbol_buffer[0] == '\0' ? '*' : symbol_buffer[0];
         ImGui::Checkbox("Pushable", &brush.pushable);
@@ -110,7 +120,7 @@ int main()
         ImGui::InputText("File", file_path.data(), file_path.size());
         if (ImGui::Button("Save JSON"))
         {
-            const std::string json_text = map.to_json();
+            const std::string json_text = map->to_json();
             if (!save_file(file_path.data(), json_text))
             {
                 status = "Failed to save file.";
@@ -139,9 +149,9 @@ int main()
                 }
                 else
                 {
-                    map = *parsed;
-                    resize_width = map.view.width;
-                    resize_height = map.view.height;
+                    map = std::move(*parsed);
+                    resize_width = map->view().width;
+                    resize_height = map->view().height;
                     status = "Loaded map JSON.";
                 }
             }
@@ -151,10 +161,10 @@ int main()
         {
             try
             {
-                (void)core::Game::from_json(map.to_json());
+                (void)core::Game::from_json(map->to_json());
                 status = "Core parser validation passed.";
             }
-            catch (const std::exception& ex)
+            catch (const std::exception &ex)
             {
                 status = std::string("Core parser validation failed: ") + ex.what();
             }
@@ -165,26 +175,26 @@ int main()
         ImGui::End();
 
         ImGui::Begin("Grid");
-        for (int y = 0; y < map.view.height; ++y)
+        for (int y = 0; y < map->view().height; ++y)
         {
-            for (int x = 0; x < map.view.width; ++x)
+            for (int x = 0; x < map->view().width; ++x)
             {
-                const core::CellView& cell = map.at(x, y);
-                const char glyph = core::MapBuilder::glyph_for_cell(cell);
+                const core::CellView &cell = map->at(x, y);
                 char label[32];
-                std::snprintf(label, sizeof(label), "%c##%d_%d", glyph, x, y);
+                std::snprintf(label, sizeof(label), "%c##%d_%d", cell.symbol, x, y);
 
                 if (ImGui::Button(label, ImVec2(28.0f, 28.0f)))
                 {
-                    map.apply_brush(x, y, brush);
+                    map->apply_brush(x, y, brush);
                 }
 
                 if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                 {
-                    map.clear_cell(x, y);
+                    map->clear_cell(x, y);
                 }
 
-                if (x + 1 < map.view.width) ImGui::SameLine();
+                if (x + 1 < map->view().width)
+                    ImGui::SameLine();
             }
         }
         ImGui::End();

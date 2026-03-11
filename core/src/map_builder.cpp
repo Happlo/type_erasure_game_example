@@ -1,138 +1,163 @@
 #include "core/map_builder.hpp"
 
-#include "core/game.hpp"
+#include "game_model.hpp"
+#include "map_io.hpp"
 
-#include <nlohmann/json.hpp>
-
-#include <cstddef>
+#include <stdexcept>
 #include <utility>
 #include <variant>
 #include <vector>
 
 namespace core
 {
-MapBuilder MapBuilder::make_default()
+namespace
 {
-    MapBuilder map;
-    map.view = Game::create_default()->view();
-    return map;
+internal::Player player_from_symbol(const char symbol)
+{
+    switch (symbol)
+    {
+    case '^':
+        return internal::Player{internal::Player::Facing::North};
+    case 'v':
+        return internal::Player{internal::Player::Facing::South};
+    case '<':
+        return internal::Player{internal::Player::Facing::West};
+    case '>':
+        return internal::Player{internal::Player::Facing::East};
+    }
+
+    throw std::runtime_error("Invalid player symbol");
 }
 
-std::optional<MapBuilder> MapBuilder::from_json(const std::string& text, std::string& error_message)
+template <typename T> internal::Object make_object(T value, const bool pushable = false)
+{
+    auto builder = internal::MakeObject(std::move(value));
+    if (pushable)
+        builder = builder.pushable();
+    return std::move(builder).build();
+}
+
+bool is_player_symbol(const char symbol)
+{
+    return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
+}
+
+class DefaultMapBuilder final : public MapBuilder
+{
+  public:
+    DefaultMapBuilder() { sync_view(); }
+
+    explicit DefaultMapBuilder(internal::Map map) : map_(std::move(map)) { sync_view(); }
+
+    const MapView &view() const override { return view_; }
+
+    const CellView &at(const int x, const int y) const override { return view_.at(x, y); }
+
+    void set_commits_left(const int commits_left) override
+    {
+        map_.commits_left = commits_left;
+        sync_view();
+    }
+
+    void set_undos_left(const int undos_left) override
+    {
+        map_.undos_left = undos_left;
+        sync_view();
+    }
+
+    void resize(const int new_width, const int new_height) override
+    {
+        std::vector<std::vector<internal::Object>> next(
+            static_cast<size_t>(new_height),
+            std::vector<internal::Object>(static_cast<size_t>(new_width), internal::Empty{}));
+        for (int y = 0; y < new_height && y < internal::grid_height(map_); ++y)
+        {
+            for (int x = 0; x < new_width && x < internal::grid_width(map_); ++x)
+            {
+                next[static_cast<size_t>(y)][static_cast<size_t>(x)] =
+                    std::move(map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)]);
+            }
+        }
+
+        map_.grid = std::move(next);
+        sync_view();
+    }
+
+    void apply_brush(const int x, const int y, const Brush &brush) override
+    {
+        if (is_player_symbol(brush.symbol))
+        {
+            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
+                make_object(player_from_symbol(brush.symbol));
+            ensure_single_player(x, y);
+            sync_view();
+            return;
+        }
+
+        if ('0' <= brush.symbol && brush.symbol <= '9')
+        {
+            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
+                make_object(brush.symbol - '0', brush.pushable);
+        }
+        else
+        {
+            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
+                make_object(brush.symbol, brush.pushable);
+        }
+        sync_view();
+    }
+
+    void clear_cell(const int x, const int y) override
+    {
+        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = make_object(internal::Empty{});
+        sync_view();
+    }
+
+    std::string to_json() const override { return map_io::map_to_json(map_); }
+
+  private:
+    void ensure_single_player(const int keep_x, const int keep_y)
+    {
+        for (int y = 0; y < internal::grid_height(map_); ++y)
+        {
+            for (int x = 0; x < internal::grid_width(map_); ++x)
+            {
+                if (x == keep_x && y == keep_y)
+                    continue;
+                auto &cell = map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
+                if (std::holds_alternative<Player>(cell.view().properties))
+                {
+                    cell = make_object(internal::Empty{});
+                }
+            }
+        }
+    }
+
+    void sync_view() { view_ = internal::build_view(map_); }
+
+    MapView view_;
+    internal::Map map_ = internal::make_map();
+};
+} // namespace
+
+std::unique_ptr<MapBuilder> MapBuilder::create_default()
+{
+    return std::make_unique<DefaultMapBuilder>();
+}
+
+std::optional<std::unique_ptr<MapBuilder>> MapBuilder::from_json(const std::string &text,
+                                                                 std::string &error_message)
 {
     try
     {
-        MapBuilder map;
-        map.view = Game::from_json(text)->view();
-        return map;
+        return std::make_optional<std::unique_ptr<MapBuilder>>(
+            std::make_unique<DefaultMapBuilder>(map_io::map_from_json(text)));
     }
-    catch (const std::exception& ex)
+    catch (const std::exception &ex)
     {
         error_message = ex.what();
         return std::nullopt;
     }
 }
 
-const CellView& MapBuilder::at(const int x, const int y) const
-{
-    return view.at(x, y);
-}
-
-CellView& MapBuilder::at(const int x, const int y)
-{
-    return view.cells[static_cast<size_t>(y * view.width + x)];
-}
-
-void MapBuilder::resize(const int new_width, const int new_height)
-{
-    std::vector<CellView> next(static_cast<size_t>(new_width * new_height), empty_cell());
-    for (int y = 0; y < new_height && y < view.height; ++y)
-    {
-        for (int x = 0; x < new_width && x < view.width; ++x)
-        {
-            next[static_cast<size_t>(y * new_width + x)] = at(x, y);
-        }
-    }
-
-    view.width = new_width;
-    view.height = new_height;
-    view.cells = std::move(next);
-}
-
-void MapBuilder::apply_brush(const int x, const int y, const Brush& brush)
-{
-    at(x, y) = cell_from_brush(brush);
-    if (is_player_symbol(brush.symbol)) ensure_single_player(x, y);
-}
-
-void MapBuilder::clear_cell(const int x, const int y)
-{
-    at(x, y) = empty_cell();
-}
-
-std::string MapBuilder::to_json() const
-{
-    nlohmann::json root;
-    root["version"] = 1;
-    root["size"] = {{"width", view.width}, {"height", view.height}};
-    root["resources"] = {{"commits", view.commits_left}, {"undos", view.undos_left}};
-
-    nlohmann::json tiles = nlohmann::json::array();
-    for (int y = 0; y < view.height; ++y)
-    {
-        for (int x = 0; x < view.width; ++x)
-        {
-            const CellView& cell = at(x, y);
-            if (std::holds_alternative<Empty>(cell.properties)) continue;
-
-            nlohmann::json tile {{"x", x}, {"y", y}, {"symbol", std::string(1, cell.symbol)}};
-            if (const auto* props = std::get_if<Object>(&cell.properties); props != nullptr)
-            {
-                if (props->is_pushable) tile["pushable"] = true;
-            }
-            tiles.push_back(std::move(tile));
-        }
-    }
-
-    root["tiles"] = std::move(tiles);
-    return root.dump(2);
-}
-
-char MapBuilder::glyph_for_cell(const CellView& cell)
-{
-    return std::holds_alternative<Empty>(cell.properties) ? ' ' : cell.symbol;
-}
-
-bool MapBuilder::is_player_symbol(const char symbol)
-{
-    return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
-}
-
-CellView MapBuilder::empty_cell()
-{
-    return CellView {.symbol = ' ', .properties = Empty {}};
-}
-
-CellView MapBuilder::cell_from_brush(const Brush& brush)
-{
-    if (is_player_symbol(brush.symbol)) return CellView {.symbol = brush.symbol, .properties = Player {}};
-
-    return CellView {
-        .symbol = brush.symbol,
-        .properties = Object {.is_pushable = brush.pushable},
-    };
-}
-
-void MapBuilder::ensure_single_player(const int keep_x, const int keep_y)
-{
-    for (int y = 0; y < view.height; ++y)
-    {
-        for (int x = 0; x < view.width; ++x)
-        {
-            if (x == keep_x && y == keep_y) continue;
-            CellView& cell = at(x, y);
-            if (std::holds_alternative<Player>(cell.properties)) cell = empty_cell();
-        }
-    }
-}
-}  // namespace core
+} // namespace core

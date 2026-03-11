@@ -2,6 +2,7 @@
 
 #include "core/map.hpp"
 
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -9,33 +10,29 @@ namespace core
 {
 struct Brush
 {
-    char symbol {'*'};
-    bool pushable {false};
+    char symbol{'*'};
+    bool pushable{false};
 };
 
 class MapBuilder
 {
-public:
-    MapView view;
+  public:
+    virtual ~MapBuilder() = default;
 
-    static MapBuilder make_default();
-    static std::optional<MapBuilder> from_json(const std::string& text, std::string& error_message);
+    virtual const MapView &view() const = 0;
+    virtual const CellView &at(int x, int y) const = 0;
 
-    const CellView& at(int x, int y) const;
-    CellView& at(int x, int y);
+    virtual void set_commits_left(int commits_left) = 0;
+    virtual void set_undos_left(int undos_left) = 0;
 
-    void resize(int new_width, int new_height);
-    void apply_brush(int x, int y, const Brush& brush);
-    void clear_cell(int x, int y);
+    virtual void resize(int new_width, int new_height) = 0;
+    virtual void apply_brush(int x, int y, const Brush &brush) = 0;
+    virtual void clear_cell(int x, int y) = 0;
 
-    std::string to_json() const;
+    virtual std::string to_json() const = 0;
 
-    static char glyph_for_cell(const CellView& cell);
-
-private:
-    static bool is_player_symbol(char symbol);
-    static CellView empty_cell();
-    static CellView cell_from_brush(const Brush& brush);
-    void ensure_single_player(int keep_x, int keep_y);
+    static std::unique_ptr<MapBuilder> create_default();
+    static std::optional<std::unique_ptr<MapBuilder>> from_json(const std::string &text,
+                                                                std::string &error_message);
 };
-}  // namespace core
+} // namespace core

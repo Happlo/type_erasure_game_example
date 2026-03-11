@@ -13,12 +13,13 @@ namespace core::internal
 {
 struct Point
 {
-    int x {};
-    int y {};
+    int x{};
+    int y{};
 };
 
 struct Empty
-{};
+{
+};
 
 struct Player
 {
@@ -30,95 +31,58 @@ struct Player
         East
     };
 
-    Facing facing {Facing::South};
+    Facing facing{Facing::South};
 
-    static Player from_delta(int dx, int dy)
-    {
-        if (dx == 0 && dy < 0) return {Facing::North};
-        if (dx == 0 && dy > 0) return {Facing::South};
-        if (dx < 0 && dy == 0) return {Facing::West};
-        if (dx > 0 && dy == 0) return {Facing::East};
-        return {};
-    }
+    static Player from_delta(int dx, int dy);
 };
 
-inline char glyph(const Player& player)
+char glyph(const Player &player);
+
+char glyph(const Empty &);
+
+char glyph(const int &value);
+
+char glyph(const char &value);
+
+template <typename T> core::CellView view(const T &value, bool is_pushable)
 {
-    switch (player.facing)
-    {
-        case Player::Facing::North: return '^';
-        case Player::Facing::South: return 'v';
-        case Player::Facing::West: return '<';
-        case Player::Facing::East: return '>';
-    }
-    return '@';
+    return {.symbol = glyph(value), .properties = core::Object{.is_pushable = is_pushable}};
 }
 
-inline char glyph(const Empty&)
+inline core::CellView view(const Empty &value, bool)
 {
-    return ' ';
+    return {.symbol = glyph(value), .properties = core::Empty{}};
 }
 
-inline char glyph(const int& value)
+inline core::CellView view(const Player &value, bool)
 {
-    if (value < 0 || 9 < value)
-    {
-        throw std::runtime_error("int must be between 0 and 9 to generate a glyph");
-    }
-    return static_cast<char>('0' + value);
-}
-
-inline char glyph(const char& value)
-{
-    return value;
-}
-
-template <typename T>
-core::CellView view(const T& value, bool is_pushable)
-{
-    return {
-        .symbol = glyph(value),
-        .properties = core::Object {
-            .is_pushable = is_pushable
-        }
-    };
-}
-
-inline core::CellView view(const Empty& value, bool)
-{
-    return {.symbol = glyph(value), .properties = core::Empty {}};
-}
-
-inline core::CellView view(const Player& value, bool)
-{
-    return {.symbol = glyph(value), .properties = core::Player {}};
+    return {.symbol = glyph(value), .properties = core::Player{}};
 }
 
 class Object
 {
-public:
+  public:
     template <typename T>
     Object(T value, bool is_pushable = false)
         : self_(std::make_shared<Model<T>>(std::move(value), is_pushable))
-    {}
-
-    core::CellView view() const
     {
-        return self_->view_();
     }
 
-private:
+    core::CellView view() const;
+
+  private:
     struct Concept
     {
         virtual ~Concept() = default;
         virtual core::CellView view_() const = 0;
     };
 
-    template <typename T>
-    struct Model : Concept
+    template <typename T> struct Model : Concept
     {
-        explicit Model(T value, bool is_pushable) : data_(std::move(value)), is_pushable_(is_pushable)
-        {}
+        explicit Model(T value, bool is_pushable)
+            : data_(std::move(value)), is_pushable_(is_pushable)
+        {
+        }
 
         core::CellView view_() const override
         {
@@ -127,119 +91,58 @@ private:
         }
 
         T data_;
-        bool is_pushable_ {false};
+        bool is_pushable_{false};
     };
 
     std::shared_ptr<const Concept> self_;
 };
 
-template <typename T>
-class MakeObject
+template <typename T> class MakeObject
 {
-public:
-    explicit MakeObject(T value) : value_(std::move(value))
-    {}
+  public:
+    explicit MakeObject(T value) : value_(std::move(value)) {}
 
-    MakeObject pushable() const
+    MakeObject pushable()
     {
-        MakeObject out = *this;
-        out.is_pushable_ = true;
-        return out;
+        is_pushable_ = true;
+        return *this;
     }
 
-    Object build() &&
-    {
-        return Object(std::move(value_), is_pushable_);
-    }
+    Object build() && { return Object(std::move(value_), is_pushable_); }
 
-    operator Object() &&
-    {
-        return std::move(*this).build();
-    }
+    operator Object() && { return std::move(*this).build(); }
 
-private:
+  private:
     T value_;
-    bool is_pushable_ {false};
+    bool is_pushable_{false};
 };
 
 struct Map
 {
-    int commits_left {6};
-    int undos_left {6};
+    int commits_left{6};
+    int undos_left{6};
     std::vector<std::vector<Object>> grid;
 };
 
 using History = std::vector<Map>;
 
-inline int grid_height(const Map& map)
-{
-    return static_cast<int>(map.grid.size());
-}
+int grid_height(const Map &map);
 
-inline int grid_width(const Map& map)
-{
-    if (map.grid.empty()) return 0;
-    return static_cast<int>(map.grid[0].size());
-}
+int grid_width(const Map &map);
 
-inline bool in_bounds(const Map& map, const Point& point)
-{
-    return point.x >= 0 && point.y >= 0 && point.x < grid_width(map) && point.y < grid_height(map);
-}
+bool in_bounds(const Map &map, const Point &point);
 
-inline Point find_player(const Map& map)
-{
-    for (int y = 0; y < grid_height(map); ++y)
-    {
-        for (int x = 0; x < grid_width(map); ++x)
-        {
-            if (std::holds_alternative<core::Player>(map.grid[y][x].view().properties)) return {x, y};
-        }
-    }
-    throw std::runtime_error("Player not found");
-}
+Point find_player(const Map &map);
 
-inline void commit(History& history)
-{
-    assert(!history.empty());
-    history.push_back(history.back());
-}
+void commit(History &history);
 
-inline void undo(History& history)
-{
-    assert(!history.empty());
-    history.pop_back();
-}
+void undo(History &history);
 
-inline Map& current(History& history)
-{
-    assert(!history.empty());
-    return history.back();
-}
+Map &current(History &history);
 
-inline const Map& current(const History& history)
-{
-    assert(!history.empty());
-    return history.back();
-}
+const Map &current(const History &history);
 
-inline Map make_map()
-{
-    constexpr size_t width = 9;
-    constexpr size_t height = 7;
+Map make_map();
 
-    Map map;
-    map.grid.assign(height, std::vector<Object>(width, Empty {}));
-
-    map.grid[6][0] = MakeObject(Player {});
-    map.grid[1][2] = MakeObject('+').pushable();
-    map.grid[1][4] = MakeObject('=').pushable();
-
-    map.grid[4][4] = MakeObject(1).pushable();
-    map.grid[5][7] = MakeObject(2).pushable();
-    map.grid[3][6] = MakeObject(3).pushable();
-    map.grid[5][2] = MakeObject(4).pushable();
-
-    return map;
-}
-}  // namespace core::internal
+core::MapView build_view(const Map &map);
+} // namespace core::internal
