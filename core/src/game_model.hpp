@@ -17,10 +17,6 @@ struct Point
     int y{};
 };
 
-struct Empty
-{
-};
-
 struct Player
 {
     enum class Facing
@@ -38,7 +34,7 @@ struct Player
 
 char glyph(const Player &player);
 
-char glyph(const Empty &);
+char glyph(const core::Empty &);
 
 char glyph(const int &value);
 
@@ -49,7 +45,7 @@ template <typename T> core::CellView view(const T &value, bool is_pushable)
     return {.symbol = glyph(value), .properties = core::Object{.is_pushable = is_pushable}};
 }
 
-inline core::CellView view(const Empty &value, bool)
+inline core::CellView view(const core::Empty &value, bool)
 {
     return {.symbol = glyph(value), .properties = core::Empty{}};
 }

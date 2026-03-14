@@ -69,7 +69,7 @@ class DefaultMapBuilder final : public MapBuilder
     {
         std::vector<std::vector<internal::Object>> next(
             static_cast<size_t>(new_height),
-            std::vector<internal::Object>(static_cast<size_t>(new_width), internal::Empty{}));
+            std::vector<internal::Object>(static_cast<size_t>(new_width), Empty{}));
         for (int y = 0; y < new_height && y < internal::grid_height(map_); ++y)
         {
             for (int x = 0; x < new_width && x < internal::grid_width(map_); ++x)
@@ -109,7 +109,7 @@ class DefaultMapBuilder final : public MapBuilder
 
     void clear_cell(const int x, const int y) override
     {
-        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = make_object(internal::Empty{});
+        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = make_object(Empty{});
         sync_view();
     }
 
@@ -127,7 +127,7 @@ class DefaultMapBuilder final : public MapBuilder
                 auto &cell = map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
                 if (std::holds_alternative<Player>(cell.view().properties))
                 {
-                    cell = make_object(internal::Empty{});
+                    cell = make_object(Empty{});
                 }
             }
         }

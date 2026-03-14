@@ -16,7 +16,7 @@ bool try_move_player(internal::Map& map, int dx, int dy)
 
     if (std::holds_alternative<core::Empty>(next_view.properties))
     {
-        map.grid[player.y][player.x] = internal::Object(internal::Empty {});
+        map.grid[player.y][player.x] = internal::Object(Empty {});
         map.grid[next.y][next.x] = internal::Object(moved_player);
         return true;
     }
@@ -31,7 +31,7 @@ bool try_move_player(internal::Map& map, int dx, int dy)
 
     map.grid[pushed.y][pushed.x] = next_object;
     map.grid[next.y][next.x] = internal::Object(moved_player);
-    map.grid[player.y][player.x] = internal::Object(internal::Empty {});
+    map.grid[player.y][player.x] = internal::Object(Empty {});
     return true;
 }
 

@@ -73,7 +73,7 @@ internal::Map map_from_json(std::string_view json_text)
     internal::Map map;
     map.commits_left = root.value("resources", json::object()).value("commits", 6);
     map.undos_left = root.value("resources", json::object()).value("undos", 6);
-    map.grid.assign(static_cast<size_t>(height), std::vector<internal::Object>(static_cast<size_t>(width), internal::Empty {}));
+    map.grid.assign(static_cast<size_t>(height), std::vector<internal::Object>(static_cast<size_t>(width), Empty {}));
 
     std::unordered_set<long long> occupied;
     const auto& tiles = root.at("tiles");

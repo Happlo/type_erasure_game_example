@@ -31,7 +31,7 @@ char glyph(const Player &player)
     return '@';
 }
 
-char glyph(const Empty &) { return ' '; }
+char glyph(const core::Empty &) { return ' '; }
 
 char glyph(const int &value)
 {
