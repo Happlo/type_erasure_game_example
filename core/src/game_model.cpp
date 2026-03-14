@@ -2,33 +2,43 @@
 
 namespace core::internal
 {
-Player Player::from_delta(const int dx, const int dy)
+PlayerState PlayerState::from_delta(const int dx, const int dy)
 {
-    if (dx == 0 && dy < 0)
-        return {Facing::North};
-    if (dx == 0 && dy > 0)
-        return {Facing::South};
-    if (dx < 0 && dy == 0)
-        return {Facing::West};
-    if (dx > 0 && dy == 0)
-        return {Facing::East};
-    return {};
+    return {.facing = facing_from_delta(dx, dy)};
 }
 
-char glyph(const Player &player)
+Facing facing_from_delta(const int dx, const int dy)
 {
-    switch (player.facing)
+    if (dx == 0 && dy < 0)
+        return Facing::North;
+    if (dx == 0 && dy > 0)
+        return Facing::South;
+    if (dx < 0 && dy == 0)
+        return Facing::West;
+    if (dx > 0 && dy == 0)
+        return Facing::East;
+    return Facing::South;
+}
+
+char glyph(const Facing facing)
+{
+    switch (facing)
     {
-    case Player::Facing::North:
+    case Facing::North:
         return '^';
-    case Player::Facing::South:
+    case Facing::South:
         return 'v';
-    case Player::Facing::West:
+    case Facing::West:
         return '<';
-    case Player::Facing::East:
+    case Facing::East:
         return '>';
     }
     return '@';
+}
+
+char glyph(const PlayerState &player)
+{
+    return glyph(player.facing);
 }
 
 char glyph(const core::Empty &) { return ' '; }
@@ -105,7 +115,7 @@ Map make_map()
     Map map;
     map.grid.assign(height, std::vector<Object>(width, Empty{}));
 
-    map.grid[6][0] = MakeObject(Player{});
+    map.grid[6][0] = MakeObject(PlayerState{});
     map.grid[1][2] = MakeObject('+').pushable();
     map.grid[1][4] = MakeObject('=').pushable();
 

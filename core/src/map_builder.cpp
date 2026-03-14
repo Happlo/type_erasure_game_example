@@ -12,18 +12,18 @@ namespace core
 {
 namespace
 {
-internal::Player player_from_symbol(const char symbol)
+internal::Facing player_facing_from_symbol(const char symbol)
 {
     switch (symbol)
     {
     case '^':
-        return internal::Player{internal::Player::Facing::North};
+        return internal::Facing::North;
     case 'v':
-        return internal::Player{internal::Player::Facing::South};
+        return internal::Facing::South;
     case '<':
-        return internal::Player{internal::Player::Facing::West};
+        return internal::Facing::West;
     case '>':
-        return internal::Player{internal::Player::Facing::East};
+        return internal::Facing::East;
     }
 
     throw std::runtime_error("Invalid player symbol");
@@ -88,7 +88,7 @@ class DefaultMapBuilder final : public MapBuilder
         if (is_player_symbol(brush.symbol))
         {
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                make_object(player_from_symbol(brush.symbol));
+                internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(brush.symbol)});
             ensure_single_player(x, y);
             sync_view();
             return;

@@ -17,22 +17,27 @@ struct Point
     int y{};
 };
 
-struct Player
+enum class Facing
 {
-    enum class Facing
-    {
-        North,
-        South,
-        West,
-        East
-    };
-
-    Facing facing{Facing::South};
-
-    static Player from_delta(int dx, int dy);
+    North,
+    South,
+    West,
+    East
 };
 
-char glyph(const Player &player);
+struct PlayerState
+{
+    core::Player player {};
+    Facing facing {Facing::South};
+
+    static PlayerState from_delta(int dx, int dy);
+};
+
+Facing facing_from_delta(int dx, int dy);
+
+char glyph(Facing facing);
+
+char glyph(const PlayerState &player);
 
 char glyph(const core::Empty &);
 
@@ -50,9 +55,9 @@ inline core::CellView view(const core::Empty &value, bool)
     return {.symbol = glyph(value), .properties = core::Empty{}};
 }
 
-inline core::CellView view(const Player &value, bool)
+inline core::CellView view(const PlayerState &value, bool)
 {
-    return {.symbol = glyph(value), .properties = core::Player{}};
+    return {.symbol = glyph(value), .properties = value.player};
 }
 
 class Object

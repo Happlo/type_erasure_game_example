@@ -12,12 +12,12 @@ namespace
 {
 using nlohmann::json;
 
-internal::Player::Facing player_facing_from_symbol(const char symbol)
+internal::Facing player_facing_from_symbol(const char symbol)
 {
-    if (symbol == '^') return internal::Player::Facing::North;
-    if (symbol == 'v') return internal::Player::Facing::South;
-    if (symbol == '<') return internal::Player::Facing::West;
-    if (symbol == '>') return internal::Player::Facing::East;
+    if (symbol == '^') return internal::Facing::North;
+    if (symbol == 'v') return internal::Facing::South;
+    if (symbol == '<') return internal::Facing::West;
+    if (symbol == '>') return internal::Facing::East;
     throw std::runtime_error("Invalid player symbol; expected one of '^', 'v', '<', '>'");
 }
 
@@ -26,13 +26,13 @@ internal::Object object_from_tile(const json& tile)
     const bool pushable = tile.value("pushable", false);
     const std::string symbol_text = tile.at("symbol").get<std::string>();
 
-    if (symbol_text == "Player") return internal::Object(internal::Player {}, pushable);
+    if (symbol_text == "Player") return internal::Object(internal::PlayerState{}, pushable);
     if (symbol_text.size() != 1) throw std::runtime_error("symbol must be one character or 'Player'");
 
     const char symbol = symbol_text[0];
     if (symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>')
     {
-        return internal::Object(internal::Player {player_facing_from_symbol(symbol)}, pushable);
+        return internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(symbol)}, pushable);
     }
     return internal::Object(symbol, pushable);
 }

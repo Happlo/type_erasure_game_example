@@ -5,7 +5,7 @@ namespace core::grid_rules
 bool try_move_player(internal::Map& map, int dx, int dy)
 {
     const internal::Point player = internal::find_player(map);
-    const internal::Player moved_player = internal::Player::from_delta(dx, dy);
+    const internal::PlayerState moved_player = internal::PlayerState::from_delta(dx, dy);
 
     const internal::Point next {player.x + dx, player.y + dy};
     if (!internal::in_bounds(map, next)) return false;
