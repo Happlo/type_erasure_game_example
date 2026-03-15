@@ -125,7 +125,7 @@ class DefaultMapBuilder final : public MapBuilder
                 if (x == keep_x && y == keep_y)
                     continue;
                 auto &cell = map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
-                if (std::holds_alternative<Player>(cell.view().properties))
+                if (std::holds_alternative<Player>(cell.view()))
                 {
                     cell = make_object(Empty{});
                 }

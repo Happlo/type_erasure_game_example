@@ -7,20 +7,30 @@
 namespace core
 {
 
-struct Empty{};
-
-struct Player{};
+struct Empty
+{
+    char symbol{' '};
+};
 
 struct Object
 {
+    char symbol;
     bool is_pushable {false};
+    bool is_pickable {false};
 };
 
-struct CellView
+struct Player
 {
     char symbol;
-    std::variant<Empty, Player, Object> properties;
+    std::vector<Object> inventory;
 };
+
+using CellView = std::variant<Empty, Player, Object>;
+
+inline char symbol_of(const CellView& cell)
+{
+    return std::visit([](const auto& value) { return value.symbol; }, cell);
+}
 
 struct MapView
 {

@@ -2,9 +2,9 @@
 
 namespace core::internal
 {
-PlayerState PlayerState::from_delta(const int dx, const int dy)
+PlayerState PlayerState::from_delta(const int dx, const int dy, core::Player player)
 {
-    return {.facing = facing_from_delta(dx, dy)};
+    return {.player = std::move(player), .facing = facing_from_delta(dx, dy)};
 }
 
 Facing facing_from_delta(const int dx, const int dy)
@@ -54,7 +54,15 @@ char glyph(const int &value)
 
 char glyph(const char &value) { return value; }
 
+char glyph(const core::Object &value) { return value.symbol; }
+
 core::CellView Object::view() const { return self_->view_(); }
+
+bool Object::is_empty() const { return self_->is_empty_(); }
+
+bool Object::is_player() const { return self_->is_player_(); }
+
+PlayerState Object::player_state() const { return self_->player_state_(); }
 
 int grid_height(const Map &map) { return static_cast<int>(map.grid.size()); }
 
@@ -76,7 +84,7 @@ Point find_player(const Map &map)
     {
         for (int x = 0; x < grid_width(map); ++x)
         {
-            if (std::holds_alternative<core::Player>(map.grid[y][x].view().properties))
+            if (map.grid[y][x].is_player())
                 return {x, y};
         }
     }

@@ -11,7 +11,7 @@ namespace
 {
 char view_glyph(const core::CellView& cell)
 {
-    return cell.symbol;
+    return core::symbol_of(cell);
 }
 
 std::vector<std::string> extract_grid(const core::MapView& view)
@@ -100,6 +100,56 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     ASSERT_EQ(grid.size(), 7U);
     EXPECT_EQ(grid[5][2], '>');
     EXPECT_EQ(grid[5][3], '4');
+}
+
+TEST(CoreGameTest, GivenPickableItemInFrontWhenPickingAndDroppingThenInventoryPersistsAcrossMove)
+{
+    // Given
+    std::unique_ptr<core::Game> game = core::Game::from_json(R"({
+  "version": 1,
+  "size": { "width": 4, "height": 3 },
+  "resources": { "commits": 2, "undos": 1 },
+  "tiles": [
+    { "x": 1, "y": 1, "symbol": ">", "pushable": false },
+    { "x": 2, "y": 1, "symbol": "*", "pickable": true }
+  ]
+})");
+
+    // When
+    const bool picked = game->apply_event(core::Event::PickItem);
+    const auto after_pick = extract_grid(game->view());
+    const bool moved = game->apply_event(core::Event::MoveRight);
+    const auto after_move = extract_grid(game->view());
+    const bool dropped = game->apply_event(core::Event::DropItem);
+    const auto after_drop = extract_grid(game->view());
+
+    // Then
+    EXPECT_TRUE(picked);
+    EXPECT_TRUE(moved);
+    EXPECT_TRUE(dropped);
+    EXPECT_EQ(after_pick[1][2], ' ');
+    EXPECT_EQ(after_move[1][1], ' ');
+    EXPECT_EQ(after_move[1][2], '>');
+    EXPECT_EQ(after_drop[1][2], '>');
+    EXPECT_EQ(after_drop[1][3], '*');
+}
+
+TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenActionFails)
+{
+    // Given
+    std::unique_ptr<core::Game> game = core::Game::from_json(R"({
+  "version": 1,
+  "size": { "width": 4, "height": 2 },
+  "tiles": [
+    { "x": 0, "y": 0, "symbol": ">" },
+    { "x": 1, "y": 0, "symbol": "+", "pushable": true },
+    { "x": 2, "y": 0, "symbol": "*", "pickable": true }
+  ]
+})");
+
+    // When / Then
+    EXPECT_FALSE(game->apply_event(core::Event::PickItem));
+    EXPECT_FALSE(game->apply_event(core::Event::DropItem));
 }
 
 TEST(CoreGameTest, GivenCustomMapJsonWhenLoadingThenMapIsBuiltFromJson)

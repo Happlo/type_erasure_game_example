@@ -22,7 +22,7 @@ std::string map_to_grid_text(const internal::Map& map)
     {
         for (int x = 0; x < width; ++x)
         {
-            out.push_back(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view().symbol);
+            out.push_back(core::symbol_of(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view()));
         }
         if (y + 1 < height) out.push_back('\n');
     }
@@ -47,6 +47,8 @@ public:
             case Event::MoveLeft: return grid_rules::try_move_player(map, -1, 0);
             case Event::MoveDown: return grid_rules::try_move_player(map, 0, 1);
             case Event::MoveRight: return grid_rules::try_move_player(map, 1, 0);
+            case Event::PickItem: return grid_rules::try_pick_item(map);
+            case Event::DropItem: return grid_rules::try_drop_item(map);
             case Event::Commit: return grid_rules::map_commit(history_);
             case Event::Undo: return grid_rules::map_undo(history_);
         }

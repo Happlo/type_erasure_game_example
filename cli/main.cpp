@@ -89,6 +89,8 @@ std::string read_command_raw(char first)
 void show_help()
 {
     std::cout << "w/a/s/d   Move player\n";
+    std::cout << "e         Pick up pickable item in front\n";
+    std::cout << "q         Drop last carried item into empty cell in front\n";
     std::cout << "          Walk into a number to push it one cell\n";
     std::cout << "commit    Save whole-map snapshot (costs 1 map commit)\n";
     std::cout << "undo      Restore previous map snapshot (costs 1 map undo)\n";
@@ -97,7 +99,7 @@ void show_help()
 
 char view_glyph(const core::CellView& cell)
 {
-    return cell.symbol;
+    return core::symbol_of(cell);
 }
 
 std::string render_view(const core::MapView& view)
@@ -115,7 +117,7 @@ std::string render_view(const core::MapView& view)
         out.push_back('\n');
     }
 
-    out += "\nCommands: w/a/s/d, commit, undo, help, quit\n";
+    out += "\nCommands: w/a/s/d, e, q, commit, undo, help, quit\n";
     out += "Goal: make the row containing '=' form a true equation.\n";
     out += "The '+' and '=' tiles stay fixed in place.\n";
     return out;
@@ -181,6 +183,16 @@ int main(int argc, char** argv)
         if (line == "a") { game->apply_event(core::Event::MoveLeft); return true; }
         if (line == "s") { game->apply_event(core::Event::MoveDown); return true; }
         if (line == "d") { game->apply_event(core::Event::MoveRight); return true; }
+        if (line == "e")
+        {
+            if (!game->apply_event(core::Event::PickItem)) std::cout << "Cannot pick up item.\n";
+            return true;
+        }
+        if (line == "q")
+        {
+            if (!game->apply_event(core::Event::DropItem)) std::cout << "Cannot drop item.\n";
+            return true;
+        }
 
         if (line == "commit")
         {
@@ -212,7 +224,7 @@ int main(int argc, char** argv)
         const char key = read_key();
         if (key == '\0') break;
 
-        if (key == 'w' || key == 'a' || key == 's' || key == 'd')
+        if (key == 'w' || key == 'a' || key == 's' || key == 'd' || key == 'e' || key == 'q')
         {
             std::cout << key << '\n';
             const std::string one(1, key);

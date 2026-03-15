@@ -181,7 +181,7 @@ int main()
             {
                 const core::CellView &cell = map->at(x, y);
                 char label[32];
-                std::snprintf(label, sizeof(label), "%c##%d_%d", cell.symbol, x, y);
+                std::snprintf(label, sizeof(label), "%c##%d_%d", core::symbol_of(cell), x, y);
 
                 if (ImGui::Button(label, ImVec2(28.0f, 28.0f)))
                 {

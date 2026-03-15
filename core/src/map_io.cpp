@@ -24,17 +24,19 @@ internal::Facing player_facing_from_symbol(const char symbol)
 internal::Object object_from_tile(const json& tile)
 {
     const bool pushable = tile.value("pushable", false);
+    const bool pickable = tile.value("pickable", false);
     const std::string symbol_text = tile.at("symbol").get<std::string>();
 
-    if (symbol_text == "Player") return internal::Object(internal::PlayerState{}, pushable);
+    if (symbol_text == "Player") return internal::Object(internal::PlayerState{}, pushable, pickable);
     if (symbol_text.size() != 1) throw std::runtime_error("symbol must be one character or 'Player'");
 
     const char symbol = symbol_text[0];
     if (symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>')
     {
-        return internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(symbol)}, pushable);
+        return internal::Object(
+            internal::PlayerState{.facing = player_facing_from_symbol(symbol)}, pushable, pickable);
     }
-    return internal::Object(symbol, pushable);
+    return internal::Object(symbol, pushable, pickable);
 }
 
 json tile_from_object(const internal::Object& object, int x, int y)
@@ -43,12 +45,13 @@ json tile_from_object(const internal::Object& object, int x, int y)
     json tile {
         {"x", x},
         {"y", y},
-        {"symbol", std::string(1, view.symbol)}
+        {"symbol", std::string(1, core::symbol_of(view))}
     };
 
-    if (const auto* props = std::get_if<core::Object>(&view.properties); props != nullptr)
+    if (const auto* props = std::get_if<core::Object>(&view); props != nullptr)
     {
         if (props->is_pushable) tile["pushable"] = true;
+        if (props->is_pickable) tile["pickable"] = true;
     }
     return tile;
 }
@@ -115,7 +118,7 @@ std::string map_to_json(const internal::Map& map)
         for (int x = 0; x < internal::grid_width(map); ++x)
         {
             const auto& obj = map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
-            if (std::holds_alternative<core::Empty>(obj.view().properties)) continue;
+            if (std::holds_alternative<core::Empty>(obj.view())) continue;
             tiles.push_back(tile_from_object(obj, x, y));
         }
     }
