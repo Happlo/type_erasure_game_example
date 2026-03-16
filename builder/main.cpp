@@ -114,6 +114,7 @@ int main()
         ImGui::InputText("Symbol", symbol_buffer, sizeof(symbol_buffer));
         brush.symbol = symbol_buffer[0] == '\0' ? '*' : symbol_buffer[0];
         ImGui::Checkbox("Pushable", &brush.pushable);
+        ImGui::Checkbox("Pickable", &brush.pickable);
         ImGui::TextUnformatted("Tips: use ^ v < > for player facing, 0..9 for numbers.");
 
         ImGui::Separator();

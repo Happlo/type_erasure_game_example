@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -174,7 +175,8 @@ int grid_width(const Map &map);
 
 bool in_bounds(const Map &map, const Point &point);
 
-Point find_player(const Map &map);
+std::optional<Point> find_player(const Map &map);
+std::optional<core::Player> get_public_player(const Map &map);
 
 void commit(History &history);
 

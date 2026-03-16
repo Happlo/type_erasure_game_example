@@ -12,9 +12,9 @@
     { "x": 0, "y": 6, "symbol": "Player" },
     { "x": 2, "y": 1, "symbol": "+", "pushable": true },
     { "x": 4, "y": 1, "symbol": "=", "pushable": true },
-    { "x": 1, "y": 4, "symbol": "1", "pushable": true },
-    { "x": 7, "y": 5, "symbol": "2", "pushable": true },
-    { "x": 3, "y": 3, "symbol": "3", "pushable": true },
-    { "x": 4, "y": 5, "symbol": "4", "pushable": true }
+    { "x": 1, "y": 4, "symbol": "1", "pushable": true , "pickable": true },
+    { "x": 7, "y": 5, "symbol": "2", "pushable": true , "pickable": true },
+    { "x": 3, "y": 3, "symbol": "3", "pushable": true , "pickable": true },
+    { "x": 4, "y": 5, "symbol": "4", "pushable": true , "pickable": true }
   ]
 }

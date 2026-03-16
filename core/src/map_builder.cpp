@@ -29,17 +29,32 @@ internal::Facing player_facing_from_symbol(const char symbol)
     throw std::runtime_error("Invalid player symbol");
 }
 
-template <typename T> internal::Object make_object(T value, const bool pushable = false)
+template <typename T>
+internal::Object make_object(T value, const bool pushable = false, const bool pickable = false)
 {
     auto builder = internal::MakeObject(std::move(value));
     if (pushable)
         builder = builder.pushable();
+    if (pickable)
+        builder = builder.pickable();
     return std::move(builder).build();
 }
 
 bool is_player_symbol(const char symbol)
 {
     return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
+}
+
+internal::Map make_empty_map(const int width, const int height)
+{
+    if (width <= 0 || height <= 0)
+        throw std::runtime_error("Map size must be positive");
+
+    internal::Map map;
+    map.grid.assign(
+        static_cast<size_t>(height),
+        std::vector<internal::Object>(static_cast<size_t>(width), Empty{}));
+    return map;
 }
 
 class DefaultMapBuilder final : public MapBuilder
@@ -97,12 +112,12 @@ class DefaultMapBuilder final : public MapBuilder
         if ('0' <= brush.symbol && brush.symbol <= '9')
         {
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                make_object(brush.symbol - '0', brush.pushable);
+                make_object(brush.symbol - '0', brush.pushable, brush.pickable);
         }
         else
         {
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                make_object(brush.symbol, brush.pushable);
+                make_object(brush.symbol, brush.pushable, brush.pickable);
         }
         sync_view();
     }
@@ -143,6 +158,11 @@ class DefaultMapBuilder final : public MapBuilder
 std::unique_ptr<MapBuilder> MapBuilder::create_default()
 {
     return std::make_unique<DefaultMapBuilder>();
+}
+
+std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height)
+{
+    return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height));
 }
 
 std::optional<std::unique_ptr<MapBuilder>> MapBuilder::from_json(const std::string &text,

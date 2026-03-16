@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <vector>
 #include <variant>
 
@@ -38,6 +39,7 @@ struct MapView
     int height {0};
     int commits_left {0};
     int undos_left {0};
+    std::optional<Player> player;
     std::vector<CellView> cells;
 
     const CellView& at(const int x, const int y) const

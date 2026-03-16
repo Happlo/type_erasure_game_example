@@ -24,12 +24,13 @@ internal::Point point_in_front(const internal::Point& point, internal::Facing fa
 
 bool try_move_player(internal::Map& map, int dx, int dy)
 {
-    const internal::Point player = internal::find_player(map);
-    const internal::PlayerState current_player = map.grid[player.y][player.x].player_state();
+    const std::optional<internal::Point> player = internal::find_player(map);
+    if (!player.has_value()) return false;
+    const internal::PlayerState current_player = map.grid[player->y][player->x].player_state();
     const internal::PlayerState moved_player =
         internal::PlayerState::from_delta(dx, dy, current_player.player);
 
-    const internal::Point next {player.x + dx, player.y + dy};
+    const internal::Point next {player->x + dx, player->y + dy};
     if (!internal::in_bounds(map, next)) return false;
 
     const internal::Object next_object = map.grid[next.y][next.x];
@@ -38,7 +39,7 @@ bool try_move_player(internal::Map& map, int dx, int dy)
 
     if (std::holds_alternative<core::Empty>(next_view))
     {
-        map.grid[player.y][player.x] = internal::Object(Empty {});
+        map.grid[player->y][player->x] = internal::Object(Empty {});
         map.grid[next.y][next.x] = internal::Object(moved_player);
         return true;
     }
@@ -53,15 +54,16 @@ bool try_move_player(internal::Map& map, int dx, int dy)
 
     map.grid[pushed.y][pushed.x] = next_object;
     map.grid[next.y][next.x] = internal::Object(moved_player);
-    map.grid[player.y][player.x] = internal::Object(Empty {});
+    map.grid[player->y][player->x] = internal::Object(Empty {});
     return true;
 }
 
 bool try_pick_item(internal::Map& map)
 {
-    const internal::Point player = internal::find_player(map);
-    internal::PlayerState player_state = map.grid[player.y][player.x].player_state();
-    const internal::Point front = point_in_front(player, player_state.facing);
+    const std::optional<internal::Point> player = internal::find_player(map);
+    if (!player.has_value()) return false;
+    internal::PlayerState player_state = map.grid[player->y][player->x].player_state();
+    const internal::Point front = point_in_front(*player, player_state.facing);
     if (!internal::in_bounds(map, front)) return false;
 
     const core::CellView front_view = map.grid[front.y][front.x].view();
@@ -69,24 +71,25 @@ bool try_pick_item(internal::Map& map)
     if (item == nullptr || !item->is_pickable) return false;
 
     player_state.player.inventory.push_back(*item);
-    map.grid[player.y][player.x] = internal::Object(player_state);
+    map.grid[player->y][player->x] = internal::Object(player_state);
     map.grid[front.y][front.x] = internal::Object(Empty {});
     return true;
 }
 
 bool try_drop_item(internal::Map& map)
 {
-    const internal::Point player = internal::find_player(map);
-    internal::PlayerState player_state = map.grid[player.y][player.x].player_state();
+    const std::optional<internal::Point> player = internal::find_player(map);
+    if (!player.has_value()) return false;
+    internal::PlayerState player_state = map.grid[player->y][player->x].player_state();
     if (player_state.player.inventory.empty()) return false;
 
-    const internal::Point front = point_in_front(player, player_state.facing);
+    const internal::Point front = point_in_front(*player, player_state.facing);
     if (!internal::in_bounds(map, front)) return false;
     if (!map.grid[front.y][front.x].is_empty()) return false;
 
     const core::Object item = player_state.player.inventory.back();
     player_state.player.inventory.pop_back();
-    map.grid[player.y][player.x] = internal::Object(player_state);
+    map.grid[player->y][player->x] = internal::Object(player_state);
     map.grid[front.y][front.x] = internal::Object(item);
     return true;
 }

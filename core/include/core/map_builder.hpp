@@ -12,6 +12,7 @@ struct Brush
 {
     char symbol{'*'};
     bool pushable{false};
+    bool pickable{false};
 };
 
 class MapBuilder
@@ -32,6 +33,7 @@ class MapBuilder
     virtual std::string to_json() const = 0;
 
     static std::unique_ptr<MapBuilder> create_default();
+    static std::unique_ptr<MapBuilder> create(int width, int height);
     static std::optional<std::unique_ptr<MapBuilder>> from_json(const std::string &text,
                                                                 std::string &error_message);
 };

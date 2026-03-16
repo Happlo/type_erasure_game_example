@@ -102,6 +102,23 @@ char view_glyph(const core::CellView& cell)
     return core::symbol_of(cell);
 }
 
+std::string render_inventory(const core::MapView& view)
+{
+    if (!view.player.has_value() || view.player->inventory.empty())
+    {
+        return "Inventory: empty";
+    }
+
+    std::string out = "Inventory: ";
+    for (size_t i = 0; i < view.player->inventory.size(); ++i)
+    {
+        if (i > 0) out += ' ';
+        out.push_back(view.player->inventory[i].symbol);
+    }
+
+    return out;
+}
+
 std::string render_view(const core::MapView& view)
 {
     std::string out;
@@ -117,6 +134,7 @@ std::string render_view(const core::MapView& view)
         out.push_back('\n');
     }
 
+    out += "\n" + render_inventory(view) + "\n";
     out += "\nCommands: w/a/s/d, e, q, commit, undo, help, quit\n";
     out += "Goal: make the row containing '=' form a true equation.\n";
     out += "The '+' and '=' tiles stay fixed in place.\n";

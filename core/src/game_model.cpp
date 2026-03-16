@@ -20,6 +20,7 @@ Facing facing_from_delta(const int dx, const int dy)
     return Facing::South;
 }
 
+
 char glyph(const Facing facing)
 {
     switch (facing)
@@ -78,17 +79,29 @@ bool in_bounds(const Map &map, const Point &point)
     return point.x >= 0 && point.y >= 0 && point.x < grid_width(map) && point.y < grid_height(map);
 }
 
-Point find_player(const Map &map)
+std::optional<Point> find_player(const Map &map)
 {
     for (int y = 0; y < grid_height(map); ++y)
     {
         for (int x = 0; x < grid_width(map); ++x)
         {
             if (map.grid[y][x].is_player())
-                return {x, y};
+                return Point{x, y};
         }
     }
-    throw std::runtime_error("Player not found");
+    return std::nullopt;
+}
+
+std::optional<core::Player> get_public_player(const Map &map)
+{
+    const std::optional<Point> player_position = find_player(map);
+    if (!player_position.has_value()) return std::nullopt;
+
+    const PlayerState player_state =
+        map.grid[static_cast<size_t>(player_position->y)][static_cast<size_t>(player_position->x)].player_state();
+    core::Player player = player_state.player;
+    player.symbol = glyph(player_state.facing);
+    return player;
 }
 
 void commit(History &history)
@@ -142,6 +155,7 @@ core::MapView build_view(const Map &map)
     view.height = grid_height(map);
     view.commits_left = map.commits_left;
     view.undos_left = map.undos_left;
+    view.player = get_public_player(map);
     view.cells.reserve(static_cast<size_t>(view.width * view.height));
 
     for (int y = 0; y < view.height; ++y)

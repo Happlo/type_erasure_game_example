@@ -95,7 +95,10 @@ internal::Map map_from_json(std::string_view json_text)
         map.grid[y][x] = object_from_tile(tile);
     }
 
-    (void)internal::find_player(map);
+    if (!internal::find_player(map).has_value())
+    {
+        throw std::runtime_error("Player not found");
+    }
     return map;
 }
 

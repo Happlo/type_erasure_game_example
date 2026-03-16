@@ -1,4 +1,5 @@
 #include "core/game.hpp"
+#include "core/map_builder.hpp"
 
 #include <gtest/gtest.h>
 
@@ -132,6 +133,28 @@ TEST(CoreGameTest, GivenPickableItemInFrontWhenPickingAndDroppingThenInventoryPe
     EXPECT_EQ(after_move[1][2], '>');
     EXPECT_EQ(after_drop[1][2], '>');
     EXPECT_EQ(after_drop[1][3], '*');
+}
+
+TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedInView)
+{
+    // Given
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(5, 2);
+    map->apply_brush(0, 0, core::Brush{.symbol = '>'});
+    map->apply_brush(1, 0, core::Brush{.symbol = '*', .pickable = true});
+    map->apply_brush(2, 0, core::Brush{.symbol = '!', .pickable = true});
+    std::unique_ptr<core::Game> game = core::Game::from_json(map->to_json());
+
+    // When
+    ASSERT_TRUE(game->apply_event(core::Event::PickItem));
+    ASSERT_TRUE(game->apply_event(core::Event::MoveRight));
+    ASSERT_TRUE(game->apply_event(core::Event::PickItem));
+    const core::MapView view = game->view();
+
+    // Then
+    ASSERT_TRUE(view.player.has_value());
+    ASSERT_EQ(view.player->inventory.size(), 2U);
+    EXPECT_EQ(view.player->inventory[0].symbol, '*');
+    EXPECT_EQ(view.player->inventory[1].symbol, '!');
 }
 
 TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenActionFails)
