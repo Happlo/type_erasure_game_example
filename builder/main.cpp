@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 
 #include <array>
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -31,6 +32,18 @@ bool load_file(const std::string &path, std::string &content)
         return false;
     content.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
     return true;
+}
+
+std::string join_chars(const std::vector<char>& chars)
+{
+    std::string result;
+    result.reserve(chars.size() * 2);
+    for (size_t i = 0; i < chars.size(); ++i)
+    {
+        if (i > 0) result += ' ';
+        result.push_back(chars[i]);
+    }
+    return result;
 }
 } // namespace
 
@@ -67,6 +80,7 @@ int main()
 
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create_default();
     core::Brush brush;
+    std::array<char, 2> symbol_buffer{brush.symbol, '\0'};
     int resize_width = map->view().width;
     int resize_height = map->view().height;
 
@@ -110,12 +124,15 @@ int main()
 
         ImGui::Separator();
         ImGui::Text("Brush");
-        char symbol_buffer[2]{brush.symbol, '\0'};
-        ImGui::InputText("Symbol", symbol_buffer, sizeof(symbol_buffer));
+        ImGui::InputText("Symbol", symbol_buffer.data(), symbol_buffer.size());
         brush.symbol = symbol_buffer[0] == '\0' ? '*' : symbol_buffer[0];
         ImGui::Checkbox("Pushable", &brush.pushable);
         ImGui::Checkbox("Pickable", &brush.pickable);
         ImGui::TextUnformatted("Tips: use ^ v < > for player facing, 0..9 for numbers.");
+        const std::string solver_operators = join_chars(core::MapBuilder::solver_operators());
+        const std::string solver_separators = join_chars(core::MapBuilder::equation_delimiters());
+        ImGui::Text("Solver operators: %s", solver_operators.c_str());
+        ImGui::Text("Solver separators: %s", solver_separators.c_str());
 
         ImGui::Separator();
         ImGui::InputText("File", file_path.data(), file_path.size());
@@ -182,7 +199,7 @@ int main()
             {
                 const core::CellView &cell = map->at(x, y);
                 char label[32];
-                std::snprintf(label, sizeof(label), "%c##%d_%d", core::symbol_of(cell), x, y);
+                std::snprintf(label, sizeof(label), "%c ###%d_%d", core::symbol_of(cell), x, y);
 
                 if (ImGui::Button(label, ImVec2(28.0f, 28.0f)))
                 {

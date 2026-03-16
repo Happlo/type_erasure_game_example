@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <string>
 
 class SolvedEquationSuccessTest : public ::testing::TestWithParam<std::string>
@@ -42,7 +43,8 @@ INSTANTIATE_TEST_SUITE_P(
         "20/5=4\n",
         "20/5=2*2\n",
         "5-10=10-15\n",
-        "1-1-1-1-1-1=1+1-2-4\n"
+        "1-1-1-1-1-1=1+1-2-4\n",
+        "12+3#4=4\n"
     ));
 
 INSTANTIATE_TEST_SUITE_P(
@@ -56,6 +58,7 @@ INSTANTIATE_TEST_SUITE_P(
         "  2 + 1 + 3 = 4\n"
         "             \n"
         "      v      \n",
+        "1+1=3#12+3\n",
         "12+3 \n"
         "     \n"
         "  >  \n"));

@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace core
 {
@@ -34,6 +35,8 @@ class MapBuilder
 
     static std::unique_ptr<MapBuilder> create_default();
     static std::unique_ptr<MapBuilder> create(int width, int height);
+    static const std::vector<char> &solver_operators();
+    static const std::vector<char> &equation_delimiters();
     static std::optional<std::unique_ptr<MapBuilder>> from_json(const std::string &text,
                                                                 std::string &error_message);
 };

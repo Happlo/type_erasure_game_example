@@ -2,6 +2,7 @@
 
 #include "game_model.hpp"
 #include "map_io.hpp"
+#include "solution_rules.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -163,6 +164,16 @@ std::unique_ptr<MapBuilder> MapBuilder::create_default()
 std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height)
 {
     return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height));
+}
+
+const std::vector<char> &MapBuilder::solver_operators()
+{
+    return solution_rules::OPERATORS;
+}
+
+const std::vector<char> &MapBuilder::equation_delimiters()
+{
+    return solution_rules::EQUATION_DELIMITERS;
 }
 
 std::optional<std::unique_ptr<MapBuilder>> MapBuilder::from_json(const std::string &text,

@@ -1,6 +1,7 @@
 #include "solution_rules.hpp"
 
 #include <cctype>
+#include <algorithm>
 #include <optional>
 #include <string>
 
@@ -24,7 +25,7 @@ bool parse_number(std::string_view text, size_t& pos, int& value)
 
 bool is_operator(const char ch)
 {
-    return ch == '+' || ch == '-' || ch == '*' || ch == '/';
+    return std::find(OPERATORS.begin(), OPERATORS.end(), ch) != OPERATORS.end();
 }
 
 std::optional<int> parse_term(std::string_view text, size_t& pos);
@@ -123,6 +124,27 @@ bool equation_is_correct(const std::string& equation)
 
     return *left_value == *right_value;
 }
+
+bool any_segment_is_correct(std::string_view line)
+{
+    size_t segment_start = 0;
+    while (segment_start <= line.size())
+    {
+        const size_t separator_pos = line.find('#', segment_start);
+        const size_t segment_end = (separator_pos == std::string_view::npos) ? line.size() : separator_pos;
+        const std::string segment(line.substr(segment_start, segment_end - segment_start));
+
+        if (segment.find('=') != std::string::npos && equation_is_correct(segment))
+        {
+            return true;
+        }
+
+        if (separator_pos == std::string_view::npos) break;
+        segment_start = separator_pos + 1;
+    }
+
+    return false;
+}
 }  // namespace
 
 bool solved_equation(const std::string_view grid_text)
@@ -137,7 +159,7 @@ bool solved_equation(const std::string_view grid_text)
 
         if (line.find('=') != std::string::npos)
         {
-            return equation_is_correct(line);
+            return any_segment_is_correct(line);
         }
 
         if (line_end == std::string_view::npos) break;
