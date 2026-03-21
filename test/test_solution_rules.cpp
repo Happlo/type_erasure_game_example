@@ -23,42 +23,33 @@ TEST_P(SolvedEquationFailureTest, ReturnsFalse)
     EXPECT_FALSE(core::solution_rules::solved_equation(GetParam()));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    SolutionRules,
-    SolvedEquationSuccessTest,
-    ::testing::Values(
-        "1+2=3\n"
-        "     \n"
-        "  v  \n",
-        "1+2+3=6\n",
-        "1+2+3=5+1\n",
-        "1 +  2   +3 =   6\n",
-        "1+2+3+4+5+6=21\n",
-        "1+5+4=10\n",
-        "40+60+110=210\n",
-        "7-3=4\n",
-        "7-3=5-1\n",
-        "7*3=21\n",
-        "7*5=40-5\n",
-        "20/5=4\n",
-        "20/5=2*2\n",
-        "5-10=10-15\n",
-        "1-1-1-1-1-1=1+1-2-4\n",
-        "12+3#4=4\n"
-    ));
+INSTANTIATE_TEST_SUITE_P(SolutionRules, SolvedEquationSuccessTest,
+                         ::testing::Values("1+2=3\n"
+                                           "     \n"
+                                           "  v  \n",
+                                           "1+2+3=6\n", "1+2+3=5+1\n", "1 +  2   +3 =   6\n",
+                                           "1+2+3+4+5+6=21\n", "1+5+4=10\n", "40+60+110=210\n",
+                                           "7-3=4\n", "7-3=5-1\n", "7*3=21\n", "7*5=40-5\n",
+                                           "20/5=4\n", "20/5=2*2\n", "5-10=10-15\n",
+                                           "1-1-1-1-1-1=1+1-2-4\n", "12+3#4=4\n", "x:3#x=2+1\n",
+                                           "x+y=5#x:2#y:3\n", "x+y=5#y:x+1#x:2\n",
+                                           "x+y=5\n"
+                                           "x:2\n"
+                                           "y:3\n"
 
-INSTANTIATE_TEST_SUITE_P(
-    SolutionRules,
-    SolvedEquationFailureTest,
-    ::testing::Values(
-        "1+2=4\n"
-        "     \n"
-        "  v  \n",
-        "      2      \n"
-        "  2 + 1 + 3 = 4\n"
-        "             \n"
-        "      v      \n",
-        "1+1=3#12+3\n",
-        "12+3 \n"
-        "     \n"
-        "  >  \n"));
+                                           ));
+
+INSTANTIATE_TEST_SUITE_P(SolutionRules, SolvedEquationFailureTest,
+                         ::testing::Values("1+2=4\n"
+                                           "     \n"
+                                           "  v  \n",
+                                           "      2      \n"
+                                           "  2 + 1 + 3 = 4\n"
+                                           "             \n"
+                                           "      v      \n",
+                                           "1+1=3#12+3\n",
+                                           "12+3 \n"
+                                           "     \n"
+                                           "  >  \n",
+                                           "x:\n", ":3\n", "a:b\n", "x:3\n", "x:1+2\n",
+                                           "x:3#x=2\n"));
