@@ -73,6 +73,16 @@ void update_brush_symbol(BuilderApp& app)
     app.brush.symbol = app.symbol_buffer[0] == '\0' ? '*' : app.symbol_buffer[0];
 }
 
+bool manipulation_is_push(const core::Object::ManipulationLevel manipulation_level)
+{
+    return manipulation_level == core::Object::ManipulationLevel::Push;
+}
+
+bool manipulation_is_pick(const core::Object::ManipulationLevel manipulation_level)
+{
+    return manipulation_level == core::Object::ManipulationLevel::Pick;
+}
+
 void resize_map(BuilderApp& app)
 {
     clamp_size(app);
@@ -133,7 +143,9 @@ void draw_brush_preview(const BuilderApp& app)
         {
             return core::Player {.symbol = app.brush.symbol};
         }
-        return core::Object {.symbol = app.brush.symbol, .is_pushable = app.brush.pushable, .is_pickable = app.brush.pickable};
+        return core::Object {
+            .symbol = app.brush.symbol,
+            .manipulation_level = app.brush.manipulation_level};
     }();
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -172,8 +184,18 @@ void draw_tools_window(BuilderApp& app)
     ImGui::TextUnformatted("Brush");
     ImGui::InputText("Symbol", app.symbol_buffer.data(), app.symbol_buffer.size());
     update_brush_symbol(app);
-    ImGui::Checkbox("Pushable", &app.brush.pushable);
-    ImGui::Checkbox("Pickable", &app.brush.pickable);
+    bool pushable = manipulation_is_push(app.brush.manipulation_level);
+    bool pickable = manipulation_is_pick(app.brush.manipulation_level);
+    if (ImGui::Checkbox("Pushable", &pushable))
+    {
+        app.brush.manipulation_level = pushable ? core::Object::ManipulationLevel::Push
+                                                : core::Object::ManipulationLevel::None;
+    }
+    if (ImGui::Checkbox("Pickable", &pickable))
+    {
+        app.brush.manipulation_level = pickable ? core::Object::ManipulationLevel::Pick
+                                                : core::Object::ManipulationLevel::None;
+    }
     draw_brush_preview(app);
     ImGui::TextWrapped("Tips: use ^ v < > for player facing, 0..9 for numbers.");
     const std::string solver_operators = join_chars(core::MapBuilder::solver_operators());

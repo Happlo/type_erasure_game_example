@@ -12,8 +12,7 @@ namespace core
 struct Brush
 {
     char symbol{'*'};
-    bool pushable{false};
-    bool pickable{false};
+    Object::ManipulationLevel manipulation_level{Object::ManipulationLevel::None};
 };
 
 class MapBuilder

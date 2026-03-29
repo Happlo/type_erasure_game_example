@@ -83,8 +83,8 @@ ImU32 tile_fill(const core::CellView& cell)
             else
             {
                 if (value.symbol == '=' || value.symbol == '+') return IM_COL32(108, 167, 124, 255);
-                if (value.is_pickable) return IM_COL32(97, 147, 196, 255);
-                if (value.is_pushable) return IM_COL32(189, 112, 143, 255);
+                if (value.manipulation_level == core::Object::ManipulationLevel::Pick) return IM_COL32(97, 147, 196, 255);
+                if (value.manipulation_level == core::Object::ManipulationLevel::Push) return IM_COL32(189, 112, 143, 255);
                 return IM_COL32(116, 123, 132, 255);
             }
         },

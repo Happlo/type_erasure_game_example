@@ -29,8 +29,8 @@ enum class Facing
 
 struct PlayerState
 {
-    core::Player player {};
-    Facing facing {Facing::South};
+    core::Player player{};
+    Facing facing{Facing::South};
 
     static PlayerState from_delta(int dx, int dy, core::Player player = {});
 };
@@ -49,28 +49,28 @@ char glyph(const char &value);
 
 char glyph(const core::Object &value);
 
-template <typename T> core::CellView view(const T &value, bool is_pushable, bool is_pickable)
+template <typename T>
+core::CellView view(const T &value, core::Object::ManipulationLevel manipulation_level)
 {
     return core::Object{
         .symbol = glyph(value),
-        .is_pushable = is_pushable,
-        .is_pickable = is_pickable,
+        .manipulation_level = manipulation_level,
     };
 }
 
-inline core::CellView view(const core::Empty &value, bool, bool)
+inline core::CellView view(const core::Empty &value, core::Object::ManipulationLevel)
 {
     return core::Empty{.symbol = glyph(value)};
 }
 
-inline core::CellView view(const PlayerState &value, bool, bool)
+inline core::CellView view(const PlayerState &value, core::Object::ManipulationLevel)
 {
     auto player = value.player;
     player.symbol = glyph(value);
     return player;
 }
 
-inline core::CellView view(const core::Object &value, bool, bool)
+inline core::CellView view(const core::Object &value, core::Object::ManipulationLevel)
 {
     return value;
 }
@@ -79,8 +79,9 @@ class Object
 {
   public:
     template <typename T>
-    Object(T value, bool is_pushable = false, bool is_pickable = false)
-        : self_(std::make_shared<Model<T>>(std::move(value), is_pushable, is_pickable))
+    Object(T value, core::Object::ManipulationLevel manipulation_level =
+                        core::Object::ManipulationLevel::None)
+        : self_(std::make_shared<Model<T>>(std::move(value), manipulation_level))
     {
     }
 
@@ -101,15 +102,15 @@ class Object
 
     template <typename T> struct Model : Concept
     {
-        explicit Model(T value, bool is_pushable, bool is_pickable)
-            : data_(std::move(value)), is_pushable_(is_pushable), is_pickable_(is_pickable)
+        explicit Model(T value, core::Object::ManipulationLevel manipulation_level)
+            : data_(std::move(value)), manipulation_level_(manipulation_level)
         {
         }
 
         core::CellView view_() const override
         {
             using core::internal::view;
-            return view(data_, is_pushable_, is_pickable_);
+            return view(data_, manipulation_level_);
         }
 
         bool is_empty_() const override { return std::is_same_v<T, core::Empty>; }
@@ -126,8 +127,7 @@ class Object
         }
 
         T data_;
-        bool is_pushable_{false};
-        bool is_pickable_{false};
+        core::Object::ManipulationLevel manipulation_level_{core::Object::ManipulationLevel::None};
     };
 
     std::shared_ptr<const Concept> self_;
@@ -138,26 +138,19 @@ template <typename T> class MakeObject
   public:
     explicit MakeObject(T value) : value_(std::move(value)) {}
 
-    MakeObject pushable()
+    MakeObject with_manipulation_level(core::Object::ManipulationLevel manipulation_level)
     {
-        is_pushable_ = true;
+        manipulation_level_ = manipulation_level;
         return *this;
     }
 
-    MakeObject pickable()
-    {
-        is_pickable_ = true;
-        return *this;
-    }
-
-    Object build() && { return Object(std::move(value_), is_pushable_, is_pickable_); }
+    Object build() && { return Object(std::move(value_), manipulation_level_); }
 
     operator Object() && { return std::move(*this).build(); }
 
   private:
     T value_;
-    bool is_pushable_{false};
-    bool is_pickable_{false};
+    core::Object::ManipulationLevel manipulation_level_{core::Object::ManipulationLevel::None};
 };
 
 struct Map

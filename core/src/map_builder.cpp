@@ -9,6 +9,7 @@
 #include <variant>
 #include <vector>
 
+using namespace core::internal;
 namespace core
 {
 namespace
@@ -33,17 +34,6 @@ internal::Facing player_facing_from_symbol(const char symbol)
     throw std::runtime_error("Invalid player symbol");
 }
 
-template <typename T>
-internal::Object make_object(T value, const bool pushable = false, const bool pickable = false)
-{
-    auto builder = internal::MakeObject(std::move(value));
-    if (pushable)
-        builder = builder.pushable();
-    if (pickable)
-        builder = builder.pickable();
-    return std::move(builder).build();
-}
-
 bool is_player_symbol(const char symbol)
 {
     return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
@@ -55,9 +45,8 @@ internal::Map make_empty_map(const int width, const int height)
         throw std::runtime_error("Map size must be positive");
 
     internal::Map map;
-    map.grid.assign(
-        static_cast<size_t>(height),
-        std::vector<internal::Object>(static_cast<size_t>(width), Empty{}));
+    map.grid.assign(static_cast<size_t>(height),
+                    std::vector<internal::Object>(static_cast<size_t>(width), Empty{}));
     return map;
 }
 
@@ -106,8 +95,8 @@ class DefaultMapBuilder final : public MapBuilder
     {
         if (is_player_symbol(brush.symbol))
         {
-            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(brush.symbol)});
+            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = internal::Object(
+                internal::PlayerState{.facing = player_facing_from_symbol(brush.symbol)});
             ensure_single_player(x, y);
             sync_view();
             return;
@@ -116,19 +105,19 @@ class DefaultMapBuilder final : public MapBuilder
         if ('0' <= brush.symbol && brush.symbol <= '9')
         {
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                make_object(brush.symbol - '0', brush.pushable, brush.pickable);
+                MakeObject(brush.symbol - '0').with_manipulation_level(brush.manipulation_level);
         }
         else
         {
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                make_object(brush.symbol, brush.pushable, brush.pickable);
+                MakeObject(brush.symbol).with_manipulation_level(brush.manipulation_level);
         }
         sync_view();
     }
 
     void clear_cell(const int x, const int y) override
     {
-        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = make_object(Empty{});
+        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = MakeObject(Empty{});
         sync_view();
     }
 
@@ -146,7 +135,7 @@ class DefaultMapBuilder final : public MapBuilder
                 auto &cell = map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
                 if (std::holds_alternative<Player>(cell.view()))
                 {
-                    cell = make_object(Empty{});
+                    cell = MakeObject(Empty{});
                 }
             }
         }
@@ -169,10 +158,7 @@ std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height
     return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height));
 }
 
-const std::vector<char> &MapBuilder::solver_operators()
-{
-    return solution_rules::OPERATORS;
-}
+const std::vector<char> &MapBuilder::solver_operators() { return solution_rules::OPERATORS; }
 
 const std::vector<char> &MapBuilder::equation_delimiters()
 {

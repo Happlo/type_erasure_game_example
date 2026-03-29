@@ -191,13 +191,34 @@ TEST(CoreGameTest, GivenPickableItemInFrontWhenPickingAndDroppingThenInventoryPe
     EXPECT_EQ(after_drop[1][3], '*');
 }
 
+TEST(CoreGameTest, GivenPickableItemWhenWalkingIntoItThenItCanAlsoBePushed)
+{
+    // Given
+    std::unique_ptr<core::Game> game = core::Game::from_json(R"({
+  "version": 1,
+  "size": { "width": 4, "height": 1 },
+  "tiles": [
+    { "x": 0, "y": 0, "symbol": ">" },
+    { "x": 1, "y": 0, "symbol": "*", "pickable": true }
+  ]
+})");
+
+    // When
+    const bool moved = game->apply_event(core::Event::MoveRight);
+    const auto grid = extract_grid(game->view());
+
+    // Then
+    EXPECT_TRUE(moved);
+    EXPECT_EQ(grid[0], " >*");
+}
+
 TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedInView)
 {
     // Given
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(5, 2);
     map->apply_brush(0, 0, core::Brush{.symbol = '>'});
-    map->apply_brush(1, 0, core::Brush{.symbol = '*', .pickable = true});
-    map->apply_brush(2, 0, core::Brush{.symbol = '!', .pickable = true});
+    map->apply_brush(1, 0, core::Brush{.symbol = '*', .manipulation_level = core::Object::ManipulationLevel::Pick});
+    map->apply_brush(2, 0, core::Brush{.symbol = '!', .manipulation_level = core::Object::ManipulationLevel::Pick});
     std::unique_ptr<core::Game> game = core::Game::from_json(map->to_json());
 
     // When

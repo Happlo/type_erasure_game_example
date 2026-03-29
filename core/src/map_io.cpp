@@ -30,19 +30,21 @@ internal::Object object_from_tile(const json &tile)
     const bool pushable = tile.value("pushable", false);
     const bool pickable = tile.value("pickable", false);
     const std::string symbol_text = tile.at("symbol").get<std::string>();
+    const core::Object::ManipulationLevel manipulation_level =
+        pickable ? core::Object::ManipulationLevel::Pick
+                 : (pushable ? core::Object::ManipulationLevel::Push : core::Object::ManipulationLevel::None);
 
     if (symbol_text == "Player")
-        return internal::Object(internal::PlayerState{}, pushable, pickable);
+        return internal::Object(internal::PlayerState{}, manipulation_level);
     if (symbol_text.size() != 1)
         throw std::runtime_error("symbol must be one character or 'Player'");
 
     const char symbol = symbol_text[0];
     if (symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>')
     {
-        return internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(symbol)},
-                                pushable, pickable);
+        return internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(symbol)}, manipulation_level);
     }
-    return internal::Object(symbol, pushable, pickable);
+    return internal::Object(symbol, manipulation_level);
 }
 
 json tile_from_object(const internal::Object &object, int x, int y)
@@ -52,9 +54,9 @@ json tile_from_object(const internal::Object &object, int x, int y)
 
     if (const auto *props = std::get_if<core::Object>(&view); props != nullptr)
     {
-        if (props->is_pushable)
+        if (props->manipulation_level != core::Object::ManipulationLevel::None)
             tile["pushable"] = true;
-        if (props->is_pickable)
+        if (props->manipulation_level == core::Object::ManipulationLevel::Pick)
             tile["pickable"] = true;
     }
     return tile;

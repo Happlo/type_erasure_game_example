@@ -44,7 +44,8 @@ bool try_move_player(internal::Map& map, int dx, int dy)
         return true;
     }
 
-    if (next_object_props == nullptr || !next_object_props->is_pushable) return false;
+    if (next_object_props == nullptr || next_object_props->manipulation_level == core::Object::ManipulationLevel::None)
+        return false;
 
     const internal::Point pushed {next.x + dx, next.y + dy};
     if (!internal::in_bounds(map, pushed)) return false;
@@ -68,7 +69,7 @@ bool try_pick_item(internal::Map& map)
 
     const core::CellView front_view = map.grid[front.y][front.x].view();
     const auto* item = std::get_if<core::Object>(&front_view);
-    if (item == nullptr || !item->is_pickable) return false;
+    if (item == nullptr || item->manipulation_level != core::Object::ManipulationLevel::Pick) return false;
 
     player_state.player.inventory.push_back(*item);
     map.grid[player->y][player->x] = internal::Object(player_state);
