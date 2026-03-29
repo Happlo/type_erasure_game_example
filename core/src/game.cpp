@@ -82,11 +82,6 @@ private:
 
 }  // namespace
 
-std::unique_ptr<Game> Game::create_default()
-{
-    return std::make_unique<DefaultGame>(internal::make_map());
-}
-
 std::unique_ptr<Game> Game::from_json(const std::string_view json_text)
 {
     return std::make_unique<DefaultGame>(map_io::map_from_json(json_text));

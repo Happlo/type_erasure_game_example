@@ -13,6 +13,9 @@ namespace core
 {
 namespace
 {
+constexpr int kDefaultMapWidth = 9;
+constexpr int kDefaultMapHeight = 7;
+
 internal::Facing player_facing_from_symbol(const char symbol)
 {
     switch (symbol)
@@ -61,7 +64,7 @@ internal::Map make_empty_map(const int width, const int height)
 class DefaultMapBuilder final : public MapBuilder
 {
   public:
-    DefaultMapBuilder() { sync_view(); }
+    DefaultMapBuilder() : map_(make_empty_map(kDefaultMapWidth, kDefaultMapHeight)) { sync_view(); }
 
     explicit DefaultMapBuilder(internal::Map map) : map_(std::move(map)) { sync_view(); }
 
@@ -152,7 +155,7 @@ class DefaultMapBuilder final : public MapBuilder
     void sync_view() { view_ = internal::build_view(map_); }
 
     MapView view_;
-    internal::Map map_ = internal::make_map();
+    internal::Map map_;
 };
 } // namespace
 

@@ -186,7 +186,5 @@ Map &current(History &history);
 
 const Map &current(const History &history);
 
-Map make_map();
-
 core::MapView build_view(const Map &map);
 } // namespace core::internal

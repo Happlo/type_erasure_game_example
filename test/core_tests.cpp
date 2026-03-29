@@ -1,8 +1,11 @@
 #include "core/game.hpp"
+#include "core/login.hpp"
 #include "core/map_builder.hpp"
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <variant>
@@ -33,12 +36,65 @@ std::vector<std::string> extract_grid(const core::MapView& view)
 
     return compact;
 }
+
+class CurrentPathGuard
+{
+public:
+    explicit CurrentPathGuard(const std::filesystem::path& new_path)
+        : original_(std::filesystem::current_path())
+    {
+        std::filesystem::current_path(new_path);
+    }
+
+    ~CurrentPathGuard()
+    {
+        std::filesystem::current_path(original_);
+    }
+
+private:
+    std::filesystem::path original_;
+};
+
+std::filesystem::path make_login_test_root()
+{
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "type_erasure_login_test";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "maps");
+    std::filesystem::create_directories(root / "users");
+    return root;
+}
+
+void write_text_file(const std::filesystem::path& path, const std::string& text)
+{
+    std::ofstream output(path);
+    ASSERT_TRUE(static_cast<bool>(output));
+    output << text;
+    ASSERT_TRUE(static_cast<bool>(output));
+}
+
+std::unique_ptr<core::Game> create_reference_game()
+{
+    return core::Game::from_json(R"({
+  "version": 1,
+  "size": { "width": 9, "height": 7 },
+  "resources": { "commits": 6, "undos": 6 },
+  "tiles": [
+    { "x": 0, "y": 6, "symbol": "v" },
+    { "x": 2, "y": 1, "symbol": "+", "pushable": true },
+    { "x": 4, "y": 1, "symbol": "=", "pushable": true },
+    { "x": 4, "y": 4, "symbol": "1", "pushable": true },
+    { "x": 7, "y": 5, "symbol": "2", "pushable": true },
+    { "x": 6, "y": 3, "symbol": "3", "pushable": true },
+    { "x": 2, "y": 5, "symbol": "4", "pushable": true }
+  ]
+})");
+}
 }  // namespace
 
 TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::create_default();
+    std::unique_ptr<core::Game> game = create_reference_game();
 
     // When
     const core::MapView view = game->view();
@@ -52,7 +108,7 @@ TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
 TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdates)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::create_default();
+    std::unique_ptr<core::Game> game = create_reference_game();
 
     // When
     const bool moved = game->apply_event(core::Event::MoveRight);
@@ -68,7 +124,7 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
 TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::create_default();
+    std::unique_ptr<core::Game> game = create_reference_game();
 
     // When
     const bool committed = game->apply_event(core::Event::Commit);
@@ -88,7 +144,7 @@ TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::create_default();
+    std::unique_ptr<core::Game> game = create_reference_game();
 
     // When
     EXPECT_TRUE(game->apply_event(core::Event::MoveUp));
@@ -226,4 +282,109 @@ TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesMap)
     // Then
     EXPECT_EQ(extract_grid(restored->view()), extract_grid(original->view()));
     EXPECT_EQ(restored->to_json(), encoded);
+}
+
+TEST(LoginViewTest, GivenNewUserWhenCreatingThenUserFileAndHighscoreAreCreated)
+{
+    // Given
+    const std::filesystem::path root = make_login_test_root();
+    CurrentPathGuard current_path(root);
+    std::unique_ptr<core::LoginView> login = core::LoginView::create();
+
+    // When
+    core::User& user = login->create_user("alice");
+    const auto& highscores = login->highscore_list();
+
+    // Then
+    EXPECT_EQ(user.username(), "alice");
+    EXPECT_TRUE(user.solved_maps().empty());
+    ASSERT_EQ(highscores.size(), 1U);
+    EXPECT_EQ(highscores[0].username, "alice");
+    EXPECT_EQ(highscores[0].solved_maps, 0);
+    EXPECT_TRUE(std::filesystem::exists(root / "users" / "alice.json"));
+}
+
+TEST(LoginViewTest, GivenExistingUserFileWhenLoggingInThenSolvedMapsAreLoaded)
+{
+    // Given
+    const std::filesystem::path root = make_login_test_root();
+    CurrentPathGuard current_path(root);
+    write_text_file(root / "users" / "bob.json", R"({
+  "username": "bob",
+  "solved_maps": ["assignment1", "zero"]
+})");
+    std::unique_ptr<core::LoginView> login = core::LoginView::create();
+
+    // When
+    core::User& user = login->login_as_user("bob");
+
+    // Then
+    ASSERT_EQ(user.solved_maps().size(), 2U);
+    EXPECT_EQ(user.solved_maps()[0].map_id, "assignment1");
+    EXPECT_EQ(user.solved_maps()[1].map_id, "zero");
+}
+
+TEST(LoginViewTest, GivenMapsDirectoryWhenSelectingMapThenGameLoadsFromSelectedMap)
+{
+    // Given
+    const std::filesystem::path root = make_login_test_root();
+    CurrentPathGuard current_path(root);
+    write_text_file(root / "maps" / "zero.json", R"({
+  "version": 1,
+  "size": { "width": 3, "height": 1 },
+  "tiles": [
+    { "x": 0, "y": 0, "symbol": ">" },
+    { "x": 1, "y": 0, "symbol": "=" },
+    { "x": 2, "y": 0, "symbol": "0", "pushable": true }
+  ]
+})");
+    std::unique_ptr<core::LoginView> login = core::LoginView::create();
+    core::User& user = login->create_user("carol");
+
+    // When
+    const auto& maps = user.available_maps();
+    std::unique_ptr<core::Game> game = user.select_map("zero");
+
+    // Then
+    ASSERT_EQ(maps.size(), 1U);
+    EXPECT_EQ(maps[0].map_id, "zero");
+    EXPECT_EQ(maps[0].display_name, "zero");
+    EXPECT_EQ(extract_grid(game->view()), std::vector<std::string>({">=0"}));
+}
+
+TEST(LoginViewTest, GivenSelectedMapWhenGameBecomesSolvedThenSolvedMapIsPersistedToUserFile)
+{
+    // Given
+    const std::filesystem::path root = make_login_test_root();
+    CurrentPathGuard current_path(root);
+    write_text_file(root / "maps" / "win.json", R"({
+  "version": 1,
+  "size": { "width": 5, "height": 1 },
+  "tiles": [
+    { "x": 0, "y": 0, "symbol": ">" },
+    { "x": 1, "y": 0, "symbol": "1", "pushable": true },
+    { "x": 2, "y": 0, "symbol": "+" },
+    { "x": 3, "y": 0, "symbol": "=" },
+    { "x": 4, "y": 0, "symbol": "1", "pushable": true }
+  ]
+})");
+    std::unique_ptr<core::LoginView> login = core::LoginView::create();
+    core::User& user = login->create_user("dana");
+    std::unique_ptr<core::Game> game = user.select_map("win");
+
+    // When
+    ASSERT_TRUE(game->apply_event(core::Event::MoveRight));
+    const std::string user_json = std::filesystem::exists(root / "users" / "dana.json")
+                                      ? [&]() {
+                                            std::ifstream input(root / "users" / "dana.json");
+                                            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+                                        }()
+                                      : "";
+
+    // Then
+    EXPECT_TRUE(game->solved());
+    ASSERT_EQ(user.solved_maps().size(), 1U);
+    EXPECT_EQ(user.solved_maps()[0].map_id, "win");
+    EXPECT_NE(user_json.find("\"win\""), std::string::npos);
+    EXPECT_EQ(login->highscore_list()[0].solved_maps, 1);
 }

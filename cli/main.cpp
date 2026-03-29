@@ -145,11 +145,7 @@ std::string render_view(const core::MapView& view)
 int main(int argc, char** argv)
 {
     std::unique_ptr<core::Game> game;
-    if (argc == 1)
-    {
-        game = core::Game::create_default();
-    }
-    else if (argc == 2)
+    if (argc == 2)
     {
         const std::string map_path = argv[1];
         std::ifstream input(map_path);
@@ -173,12 +169,12 @@ int main(int argc, char** argv)
     }
     else
     {
-        std::cerr << "Usage: type_erasure [path-to-map.json]\n";
+        std::cerr << "Usage: type_erasure <path-to-map.json>\n";
         return 1;
     }
 
     std::cout << "Time Grid\n";
-    if (argc == 2) std::cout << "Loaded map from " << argv[1] << "\n";
+    std::cout << "Loaded map from " << argv[1] << "\n";
     show_help();
 
     RawModeGuard raw_mode;

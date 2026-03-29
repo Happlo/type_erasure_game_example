@@ -128,26 +128,6 @@ const Map &current(const History &history)
     return history.back();
 }
 
-Map make_map()
-{
-    constexpr size_t width = 9;
-    constexpr size_t height = 7;
-
-    Map map;
-    map.grid.assign(height, std::vector<Object>(width, Empty{}));
-
-    map.grid[6][0] = MakeObject(PlayerState{});
-    map.grid[1][2] = MakeObject('+').pushable();
-    map.grid[1][4] = MakeObject('=').pushable();
-
-    map.grid[4][4] = MakeObject(1).pushable();
-    map.grid[5][7] = MakeObject(2).pushable();
-    map.grid[3][6] = MakeObject(3).pushable();
-    map.grid[5][2] = MakeObject(4).pushable();
-
-    return map;
-}
-
 core::MapView build_view(const Map &map)
 {
     core::MapView view;

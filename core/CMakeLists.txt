@@ -6,7 +6,8 @@ add_library(core STATIC
     src/grid_rules.cpp
     src/solution_rules.cpp
     src/map_io.cpp
-    src/map_builder.cpp)
+    src/map_builder.cpp
+    src/login.cpp)
 
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

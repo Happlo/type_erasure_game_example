@@ -1,4 +1,5 @@
 #include "core/game.hpp"
+#include "core/login.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -24,6 +25,10 @@ constexpr ImVec2 kControlWindowPos {24.0f, 24.0f};
 constexpr ImVec2 kControlWindowSize {360.0f, 852.0f};
 constexpr ImVec2 kBoardWindowPos {408.0f, 24.0f};
 constexpr ImVec2 kBoardWindowSize {1008.0f, 852.0f};
+constexpr ImVec2 kLoginWindowPos {24.0f, 24.0f};
+constexpr ImVec2 kLoginWindowSize {520.0f, 852.0f};
+constexpr ImVec2 kHighscoreWindowPos {568.0f, 24.0f};
+constexpr ImVec2 kHighscoreWindowSize {848.0f, 852.0f};
 constexpr ImVec2 kMoveButtonSize {96.0f, 36.0f};
 constexpr ImVec2 kActionButtonSize {150.0f, 38.0f};
 constexpr ImVec2 kResetButtonSize {310.0f, 38.0f};
@@ -32,9 +37,12 @@ constexpr char kDefaultMapPath[] = "maps/try_map.json";
 
 struct AppState
 {
-    std::unique_ptr<core::Game> game {core::Game::create_default()};
+    std::unique_ptr<core::LoginView> login {core::LoginView::create()};
+    core::User* current_user {nullptr};
+    std::unique_ptr<core::Game> game;
     std::string status {"Ready."};
     std::array<char, 256> file_path {};
+    std::array<char, 128> username_input {};
 
     AppState()
     {
@@ -181,10 +189,56 @@ struct GridRenderContext
     bool solved;
 };
 
-void reset_to_default_map(AppState& app)
+void return_to_login(AppState& app)
 {
-    app.game = core::Game::create_default();
-    app.status = "Reset to default map.";
+    app.game.reset();
+    app.status = "Choose a map to start a game.";
+}
+
+bool has_active_game(const AppState& app)
+{
+    return static_cast<bool>(app.game);
+}
+
+void start_selected_map(AppState& app, const std::string& map_id)
+{
+    if (app.current_user == nullptr) return;
+
+    try
+    {
+        app.game = app.current_user->select_map(map_id);
+        app.status = "Loaded map: " + map_id;
+    }
+    catch (const std::exception& ex)
+    {
+        app.status = std::string("Failed to start map: ") + ex.what();
+    }
+}
+
+void login_existing_user(AppState& app)
+{
+    try
+    {
+        app.current_user = &app.login->login_as_user(app.username_input.data());
+        app.status = std::string("Logged in as ") + app.current_user->username();
+    }
+    catch (const std::exception& ex)
+    {
+        app.status = std::string("Login failed: ") + ex.what();
+    }
+}
+
+void create_new_user(AppState& app)
+{
+    try
+    {
+        app.current_user = &app.login->create_user(app.username_input.data());
+        app.status = std::string("Created user ") + app.current_user->username();
+    }
+    catch (const std::exception& ex)
+    {
+        app.status = std::string("Create user failed: ") + ex.what();
+    }
 }
 
 void load_map(AppState& app, const std::string& path, const bool startup_load = false)
@@ -193,7 +247,7 @@ void load_map(AppState& app, const std::string& path, const bool startup_load = 
     if (!content.has_value())
     {
         app.status = startup_load ? "Failed to load startup map." : "Failed to load map file.";
-        if (startup_load) app.game = core::Game::create_default();
+        if (startup_load) app.game.reset();
         return;
     }
 
@@ -205,12 +259,14 @@ void load_map(AppState& app, const std::string& path, const bool startup_load = 
     catch (const std::exception& ex)
     {
         app.status = std::string(startup_load ? "Invalid startup map: " : "Invalid map JSON: ") + ex.what();
-        if (startup_load) app.game = core::Game::create_default();
+        if (startup_load) app.game.reset();
     }
 }
 
 void handle_keyboard(AppState& app)
 {
+    if (!has_active_game(app)) return;
+
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureKeyboard) return;
 
@@ -241,7 +297,7 @@ void handle_keyboard(AppState& app)
         }
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_R, false)) reset_to_default_map(app);
+    if (ImGui::IsKeyPressed(ImGuiKey_R, false)) return_to_login(app);
 }
 
 bool action_button(const char* label, const ImVec2 size, core::Game& game, const core::Event event, std::string& status)
@@ -252,6 +308,12 @@ bool action_button(const char* label, const ImVec2 size, core::Game& game, const
 
 void draw_status_panel(const AppState& app)
 {
+    if (!has_active_game(app))
+    {
+        ImGui::TextWrapped("%s", app.status.c_str());
+        return;
+    }
+
     if (app.game->solved())
     {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.68f, 0.91f, 0.67f, 1.0f));
@@ -375,6 +437,7 @@ void draw_control_window(AppState& app, const core::MapView& view)
     ImGui::TextUnformatted("Type Erasure");
     ImGui::Separator();
     ImGui::TextWrapped("Make the row containing '=' become a true equation.");
+    if (app.current_user != nullptr) ImGui::Text("User: %s", app.current_user->username().c_str());
 
     ImGui::Spacing();
     ImGui::Text("Map commits: %d", view.commits_left);
@@ -399,7 +462,7 @@ void draw_control_window(AppState& app, const core::MapView& view)
     action_button("Undo  [U]", kActionButtonSize, *app.game, core::Event::Undo, app.status);
 
     ImGui::Spacing();
-    if (ImGui::Button("Reset Default  [R]", kResetButtonSize)) reset_to_default_map(app);
+    if (ImGui::Button("Back To Login  [R]", kResetButtonSize)) return_to_login(app);
 
     ImGui::InputText("Load map", app.file_path.data(), app.file_path.size());
     if (ImGui::Button("Load JSON", kLoadButtonSize)) load_map(app, app.file_path.data());
@@ -417,6 +480,99 @@ void draw_board_window(const core::MapView& view, const bool solved)
     ImGui::Begin("Board", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     draw_grid(view, solved);
     ImGui::End();
+}
+
+void draw_highscore_rows(const std::vector<core::HighscoreEntry>& highscores)
+{
+    for (const auto& entry : highscores)
+    {
+        ImGui::BulletText("%s", entry.username.c_str());
+        ImGui::SameLine(240.0f);
+        ImGui::Text("%d solved", entry.solved_maps);
+    }
+}
+
+void draw_solved_map_rows(const core::User& user)
+{
+    const auto& solved_maps = user.solved_maps();
+    if (solved_maps.empty())
+    {
+        ImGui::TextDisabled("No solved maps yet.");
+        return;
+    }
+
+    for (const auto& map : solved_maps) ImGui::BulletText("%s", map.display_name.c_str());
+}
+
+void draw_map_buttons(AppState& app)
+{
+    if (app.current_user == nullptr)
+    {
+        ImGui::TextDisabled("Log in to see the map list.");
+        return;
+    }
+
+    const auto& maps = app.current_user->available_maps();
+    if (maps.empty())
+    {
+        ImGui::TextDisabled("No maps found in maps/.");
+        return;
+    }
+
+    for (const auto& map : maps)
+    {
+        if (ImGui::Button(map.display_name.c_str(), ImVec2(220.0f, 38.0f))) start_selected_map(app, map.map_id);
+    }
+}
+
+void draw_login_window(AppState& app)
+{
+    ImGui::SetNextWindowPos(kLoginWindowPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(kLoginWindowSize, ImGuiCond_Always);
+    ImGui::Begin("Login", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+
+    ImGui::TextUnformatted("Type Erasure");
+    ImGui::Separator();
+    ImGui::TextWrapped("Create a user or log in, then choose a map to start a game.");
+    ImGui::InputText("Username", app.username_input.data(), app.username_input.size());
+
+    if (ImGui::Button("Log In", ImVec2(140.0f, 40.0f))) login_existing_user(app);
+    ImGui::SameLine();
+    if (ImGui::Button("Create User", ImVec2(140.0f, 40.0f))) create_new_user(app);
+
+    ImGui::Spacing();
+    if (app.current_user != nullptr) ImGui::Text("Current user: %s", app.current_user->username().c_str());
+    draw_status_panel(app);
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextUnformatted("Available Maps");
+    draw_map_buttons(app);
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextUnformatted("Solved Maps");
+    if (app.current_user != nullptr) draw_solved_map_rows(*app.current_user);
+    if (app.current_user == nullptr) ImGui::TextDisabled("No user selected.");
+
+    ImGui::End();
+}
+
+void draw_highscore_window(const AppState& app)
+{
+    ImGui::SetNextWindowPos(kHighscoreWindowPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(kHighscoreWindowSize, ImGuiCond_Always);
+    ImGui::Begin("Highscores", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+    ImGui::TextUnformatted("Leaderboard");
+    ImGui::Separator();
+    draw_highscore_rows(app.login->highscore_list());
+    ImGui::End();
+}
+
+void draw_login_frame(AppState& app)
+{
+    draw_login_window(app);
+    draw_highscore_window(app);
 }
 
 void render_frame(GLFWwindow* window)
@@ -441,10 +597,16 @@ void draw_frame(GLFWwindow* window, AppState& app)
     ImGui::NewFrame();
 
     handle_keyboard(app);
-    const core::MapView view = app.game->view();
-
-    draw_control_window(app, view);
-    draw_board_window(view, app.game->solved());
+    if (has_active_game(app))
+    {
+        const core::MapView view = app.game->view();
+        draw_control_window(app, view);
+        if (has_active_game(app)) draw_board_window(view, app.game->solved());
+    }
+    else
+    {
+        draw_login_frame(app);
+    }
     render_frame(window);
 }
 }  // namespace
