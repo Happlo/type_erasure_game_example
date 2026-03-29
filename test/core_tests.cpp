@@ -388,3 +388,30 @@ TEST(LoginViewTest, GivenSelectedMapWhenGameBecomesSolvedThenSolvedMapIsPersiste
     EXPECT_NE(user_json.find("\"win\""), std::string::npos);
     EXPECT_EQ(login->highscore_list()[0].solved_maps, 1);
 }
+
+TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucceeds)
+{
+    // Given
+    const std::string json_map = R"({
+  "version": 1,
+  "size": { "width": 4, "height": 3 },
+  "resources": { "commits": 0, "undos": 0 },
+  "tiles": [
+    { "x": 1, "y": 0, "symbol": "1" },
+    { "x": 2, "y": 0, "symbol": "+" },
+    { "x": 3, "y": 0, "symbol": "1" }
+  ]
+})";
+    std::string error;
+
+    // When
+    auto builder = core::MapBuilder::from_json(json_map, error);
+
+    // Then
+    ASSERT_TRUE(builder.has_value());
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ((*builder)->view().width, 4);
+    EXPECT_EQ((*builder)->view().height, 3);
+    EXPECT_EQ(core::symbol_of((*builder)->at(1, 0)), '1');
+    EXPECT_EQ(core::symbol_of((*builder)->at(2, 0)), '+');
+}

@@ -185,7 +185,7 @@ std::optional<std::unique_ptr<MapBuilder>> MapBuilder::from_json(const std::stri
     try
     {
         return std::make_optional<std::unique_ptr<MapBuilder>>(
-            std::make_unique<DefaultMapBuilder>(map_io::map_from_json(text)));
+            std::make_unique<DefaultMapBuilder>(map_io::map_from_json(text, false)));
     }
     catch (const std::exception &ex)
     {
