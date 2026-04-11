@@ -1,0 +1,93 @@
+{
+  "resources": {
+    "commits": 6,
+    "undos": 6
+  },
+  "size": {
+    "height": 7,
+    "width": 9
+  },
+  "tiles": [
+    {
+      "symbol": "=",
+      "x": 4,
+      "y": 1
+    },
+    {
+      "symbol": "3",
+      "x": 5,
+      "y": 1
+    },
+    {
+      "pickable": true,
+      "pushable": true,
+      "symbol": "y",
+      "x": 4,
+      "y": 3
+    },
+    {
+      "pickable": true,
+      "pushable": true,
+      "symbol": "-",
+      "x": 5,
+      "y": 3
+    },
+    {
+      "pickable": true,
+      "pushable": true,
+      "symbol": "+",
+      "x": 6,
+      "y": 3
+    },
+    {
+      "pickable": true,
+      "pushable": true,
+      "symbol": "*",
+      "x": 7,
+      "y": 3
+    },
+    {
+      "pickable": true,
+      "pushable": true,
+      "symbol": "x",
+      "x": 4,
+      "y": 4
+    },
+    {
+      "symbol": "x",
+      "x": 6,
+      "y": 5
+    },
+    {
+      "symbol": ":",
+      "x": 7,
+      "y": 5
+    },
+    {
+      "symbol": "1",
+      "x": 8,
+      "y": 5
+    },
+    {
+      "symbol": ">",
+      "x": 0,
+      "y": 6
+    },
+    {
+      "symbol": "y",
+      "x": 6,
+      "y": 6
+    },
+    {
+      "symbol": ":",
+      "x": 7,
+      "y": 6
+    },
+    {
+      "symbol": "2",
+      "x": 8,
+      "y": 6
+    }
+  ],
+  "version": 1
+}
