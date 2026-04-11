@@ -25,10 +25,10 @@ using type_erasure::gui::save_text_file;
 using type_erasure::gui::tile_fill;
 using type_erasure::gui::tile_outline;
 
-constexpr ImVec2 kToolsWindowPos {24.0f, 24.0f};
-constexpr ImVec2 kToolsWindowSize {360.0f, 852.0f};
-constexpr ImVec2 kCanvasWindowPos {408.0f, 24.0f};
-constexpr ImVec2 kCanvasWindowSize {1008.0f, 852.0f};
+constexpr ImVec2 kToolsWindowPos{24.0f, 24.0f};
+constexpr ImVec2 kToolsWindowSize{360.0f, 852.0f};
+constexpr ImVec2 kCanvasWindowPos{408.0f, 24.0f};
+constexpr ImVec2 kCanvasWindowSize{1008.0f, 852.0f};
 
 struct BuilderApp
 {
@@ -38,40 +38,38 @@ struct BuilderApp
         int y;
     };
 
-    std::unique_ptr<core::MapBuilder> map {core::MapBuilder::create_default()};
+    std::unique_ptr<core::MapBuilder> map{core::MapBuilder::create_default()};
     core::Brush brush;
-    std::string status {"Ready."};
-    int resize_width {map->view().width};
-    int resize_height {map->view().height};
-    std::array<char, 2> symbol_buffer {brush.symbol, '\0'};
-    std::array<char, 256> file_path {};
+    std::string status{"Ready."};
+    int resize_width{map->view().width};
+    int resize_height{map->view().height};
+    std::array<char, 2> symbol_buffer{brush.symbol, '\0'};
+    std::array<char, 256> file_path{};
     std::optional<CellSelection> selected_cell;
 
-    BuilderApp()
-    {
-        std::snprintf(file_path.data(), file_path.size(), "%s", "maps/try_map.json");
-    }
+    BuilderApp() { std::snprintf(file_path.data(), file_path.size(), "%s", "maps/try_map.json"); }
 };
 
-std::string join_chars(const std::vector<char>& chars)
+std::string join_chars(const std::vector<char> &chars)
 {
     std::string result;
     result.reserve(chars.size() * 2);
     for (size_t i = 0; i < chars.size(); ++i)
     {
-        if (i > 0) result += ' ';
+        if (i > 0)
+            result += ' ';
         result.push_back(chars[i]);
     }
     return result;
 }
 
-void clamp_size(BuilderApp& app)
+void clamp_size(BuilderApp &app)
 {
     app.resize_width = std::clamp(app.resize_width, 1, 64);
     app.resize_height = std::clamp(app.resize_height, 1, 64);
 }
 
-void sync_size_from_map(BuilderApp& app)
+void sync_size_from_map(BuilderApp &app)
 {
     app.resize_width = app.map->view().width;
     app.resize_height = app.map->view().height;
@@ -82,12 +80,12 @@ void sync_size_from_map(BuilderApp& app)
     }
 }
 
-void update_brush_symbol(BuilderApp& app)
+void update_brush_symbol(BuilderApp &app)
 {
     app.brush.symbol = app.symbol_buffer[0] == '\0' ? '*' : app.symbol_buffer[0];
 }
 
-void sync_symbol_buffer(BuilderApp& app)
+void sync_symbol_buffer(BuilderApp &app)
 {
     app.symbol_buffer[0] = app.brush.symbol;
     app.symbol_buffer[1] = '\0';
@@ -103,28 +101,31 @@ bool manipulation_is_pick(const core::Object::ManipulationLevel manipulation_lev
     return manipulation_level == core::Object::ManipulationLevel::Pick;
 }
 
-core::Object::ManipulationLevel manipulation_from_cell(const core::CellView& cell)
+core::Object::ManipulationLevel manipulation_from_cell(const core::CellView &cell)
 {
-    if (const auto* object = std::get_if<core::Object>(&cell); object != nullptr) return object->manipulation_level;
+    if (const auto *object = std::get_if<core::Object>(&cell); object != nullptr)
+        return object->manipulation_level;
     return core::Object::ManipulationLevel::None;
 }
 
-void apply_brush_to_selected_cell(BuilderApp& app)
+void apply_brush_to_selected_cell(BuilderApp &app)
 {
-    if (!app.selected_cell.has_value()) return;
+    if (!app.selected_cell.has_value())
+        return;
     app.map->apply_brush(app.selected_cell->x, app.selected_cell->y, app.brush);
 }
 
-void clear_selected_cell(BuilderApp& app)
+void clear_selected_cell(BuilderApp &app)
 {
-    if (!app.selected_cell.has_value()) return;
+    if (!app.selected_cell.has_value())
+        return;
     app.map->clear_cell(app.selected_cell->x, app.selected_cell->y);
 }
 
-void select_cell(BuilderApp& app, const int x, const int y)
+void select_cell(BuilderApp &app, const int x, const int y)
 {
-    app.selected_cell = BuilderApp::CellSelection {.x = x, .y = y};
-    const core::CellView& cell = app.map->at(x, y);
+    app.selected_cell = BuilderApp::CellSelection{.x = x, .y = y};
+    const core::CellView &cell = app.map->at(x, y);
     if (std::holds_alternative<core::Empty>(cell))
     {
         app.brush.symbol = '*';
@@ -138,7 +139,7 @@ void select_cell(BuilderApp& app, const int x, const int y)
     sync_symbol_buffer(app);
 }
 
-void move_selection(BuilderApp& app, const int dx, const int dy)
+void move_selection(BuilderApp &app, const int dx, const int dy)
 {
     if (!app.selected_cell.has_value())
     {
@@ -151,35 +152,44 @@ void move_selection(BuilderApp& app, const int dx, const int dy)
     select_cell(app, next_x, next_y);
 }
 
-void handle_keyboard_input(BuilderApp& app)
+void handle_keyboard_input(BuilderApp &app)
 {
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.WantCaptureKeyboard) return;
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard)
+        return;
 
-    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false)) move_selection(app, -1, 0);
-    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false)) move_selection(app, 1, 0);
-    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) move_selection(app, 0, -1);
-    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) move_selection(app, 0, 1);
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
+        move_selection(app, -1, 0);
+    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
+        move_selection(app, 1, 0);
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
+        move_selection(app, 0, -1);
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
+        move_selection(app, 0, 1);
 
-    if (!app.selected_cell.has_value()) return;
+    if (!app.selected_cell.has_value())
+        return;
 
     for (const ImWchar character : io.InputQueueCharacters)
     {
-        if (character < 32 || character > 126) continue;
-        if (!std::isprint(static_cast<unsigned char>(character))) continue;
+        if (character < 32 || character > 126)
+            continue;
+        if (!std::isprint(static_cast<unsigned char>(character)))
+            continue;
         app.brush.symbol = static_cast<char>(character);
         sync_symbol_buffer(app);
         apply_brush_to_selected_cell(app);
         move_selection(app, 1, 0);
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Backspace, false) || ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+    if (ImGui::IsKeyPressed(ImGuiKey_Backspace, false) ||
+        ImGui::IsKeyPressed(ImGuiKey_Delete, false))
     {
         clear_selected_cell(app);
     }
 }
 
-void resize_map(BuilderApp& app)
+void resize_map(BuilderApp &app)
 {
     clamp_size(app);
     app.map->resize(app.resize_width, app.resize_height);
@@ -187,7 +197,7 @@ void resize_map(BuilderApp& app)
     app.status = "Resized map.";
 }
 
-void load_map(BuilderApp& app)
+void load_map(BuilderApp &app)
 {
     std::string text;
     if (!load_text_file(app.file_path.data(), text))
@@ -210,7 +220,7 @@ void load_map(BuilderApp& app)
     app.status = "Loaded map JSON.";
 }
 
-void save_map(const BuilderApp& app, std::string& status)
+void save_map(const BuilderApp &app, std::string &status)
 {
     if (!save_text_file(app.file_path.data(), app.map->to_json()))
     {
@@ -221,32 +231,32 @@ void save_map(const BuilderApp& app, std::string& status)
     status = "Saved map JSON.";
 }
 
-void validate_map(const BuilderApp& app, std::string& status)
+void validate_map(const BuilderApp &app, std::string &status)
 {
     try
     {
         (void)core::Game::from_json(app.map->to_json());
         status = "Core parser validation passed.";
     }
-    catch (const std::exception& ex)
+    catch (const std::exception &ex)
     {
         status = std::string("Core parser validation failed: ") + ex.what();
     }
 }
 
-void draw_brush_preview(const BuilderApp& app)
+void draw_brush_preview(const BuilderApp &app)
 {
     const core::CellView preview = [&]() -> core::CellView {
-        if (app.brush.symbol == '^' || app.brush.symbol == 'v' || app.brush.symbol == '<' || app.brush.symbol == '>')
+        if (app.brush.symbol == '^' || app.brush.symbol == 'v' || app.brush.symbol == '<' ||
+            app.brush.symbol == '>')
         {
-            return core::Player {.symbol = app.brush.symbol};
+            return core::Player{.symbol = app.brush.symbol, .inventory = {}};
         }
-        return core::Object {
-            .symbol = app.brush.symbol,
-            .manipulation_level = app.brush.manipulation_level};
+        return core::Object{.symbol = app.brush.symbol,
+                            .manipulation_level = app.brush.manipulation_level};
     }();
 
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 cell_max(origin.x + 72.0f, origin.y + 72.0f);
     draw_list->AddRectFilled(origin, cell_max, tile_fill(preview), 14.0f);
@@ -255,7 +265,7 @@ void draw_brush_preview(const BuilderApp& app)
     ImGui::Dummy(ImVec2(72.0f, 72.0f));
 }
 
-void draw_tools_window(BuilderApp& app)
+void draw_tools_window(BuilderApp &app)
 {
     ImGui::SetNextWindowPos(kToolsWindowPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(kToolsWindowSize, ImGuiCond_Always);
@@ -263,19 +273,23 @@ void draw_tools_window(BuilderApp& app)
 
     ImGui::TextUnformatted("Type Erasure Builder");
     ImGui::Separator();
-    ImGui::TextWrapped("Left click selects a cell. Typing commits a symbol. Right click clears and selects.");
+    ImGui::TextWrapped(
+        "Left click selects a cell. Typing commits a symbol. Right click clears and selects.");
 
     ImGui::Spacing();
     ImGui::Text("Map size: %d x %d", app.map->view().width, app.map->view().height);
     ImGui::InputInt("Width", &app.resize_width);
     ImGui::InputInt("Height", &app.resize_height);
-    if (ImGui::Button("Resize Map", ImVec2(150.0f, 38.0f))) resize_map(app);
+    if (ImGui::Button("Resize Map", ImVec2(150.0f, 38.0f)))
+        resize_map(app);
 
     ImGui::Spacing();
     int commits_left = app.map->view().commits_left;
     int undos_left = app.map->view().undos_left;
-    if (ImGui::InputInt("Commits", &commits_left)) app.map->set_commits_left(commits_left);
-    if (ImGui::InputInt("Undos", &undos_left)) app.map->set_undos_left(undos_left);
+    if (ImGui::InputInt("Commits", &commits_left))
+        app.map->set_commits_left(commits_left);
+    if (ImGui::InputInt("Undos", &undos_left))
+        app.map->set_undos_left(undos_left);
 
     ImGui::Spacing();
     ImGui::Separator();
@@ -313,10 +327,13 @@ void draw_tools_window(BuilderApp& app)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::InputText("File", app.file_path.data(), app.file_path.size());
-    if (ImGui::Button("Save JSON", ImVec2(140.0f, 36.0f))) save_map(app, app.status);
+    if (ImGui::Button("Save JSON", ImVec2(140.0f, 36.0f)))
+        save_map(app, app.status);
     ImGui::SameLine();
-    if (ImGui::Button("Load JSON", ImVec2(140.0f, 36.0f))) load_map(app);
-    if (ImGui::Button("Validate", ImVec2(140.0f, 36.0f))) validate_map(app, app.status);
+    if (ImGui::Button("Load JSON", ImVec2(140.0f, 36.0f)))
+        load_map(app);
+    if (ImGui::Button("Validate", ImVec2(140.0f, 36.0f)))
+        validate_map(app, app.status);
 
     ImGui::Spacing();
     ImGui::TextWrapped("%s", app.status.c_str());
@@ -324,20 +341,23 @@ void draw_tools_window(BuilderApp& app)
     ImGui::End();
 }
 
-void draw_map_tile(ImDrawList& draw_list, BuilderApp& app, const float tile_size, const ImVec2 origin, const int x,
-                   const int y)
+void draw_map_tile(ImDrawList &draw_list, BuilderApp &app, const float tile_size,
+                   const ImVec2 origin, const int x, const int y)
 {
-    const core::CellView& cell = app.map->at(x, y);
+    const core::CellView &cell = app.map->at(x, y);
     const ImVec2 cell_min(origin.x + x * tile_size, origin.y + y * tile_size);
     const ImVec2 cell_max(cell_min.x + tile_size - 4.0f, cell_min.y + tile_size - 4.0f);
     draw_list.AddRectFilled(cell_min, cell_max, tile_fill(cell), 12.0f);
-    const bool selected = app.selected_cell.has_value() && app.selected_cell->x == x && app.selected_cell->y == y;
-    draw_list.AddRect(cell_min, cell_max, selected ? IM_COL32(255, 231, 168, 255) : tile_outline(cell), 12.0f, 0,
+    const bool selected =
+        app.selected_cell.has_value() && app.selected_cell->x == x && app.selected_cell->y == y;
+    draw_list.AddRect(cell_min, cell_max,
+                      selected ? IM_COL32(255, 231, 168, 255) : tile_outline(cell), 12.0f, 0,
                       selected ? 4.0f : 2.0f);
     draw_tile_symbol(draw_list, cell_min, cell_max, core::symbol_of(cell), tile_size * 0.58f);
 
     ImGui::SetCursorScreenPos(cell_min);
-    ImGui::InvisibleButton(("cell_" + std::to_string(x) + "_" + std::to_string(y)).c_str(), ImVec2(tile_size, tile_size));
+    ImGui::InvisibleButton(("cell_" + std::to_string(x) + "_" + std::to_string(y)).c_str(),
+                           ImVec2(tile_size, tile_size));
     if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         select_cell(app, x, y);
@@ -349,30 +369,35 @@ void draw_map_tile(ImDrawList& draw_list, BuilderApp& app, const float tile_size
     }
 }
 
-void draw_map_row(ImDrawList& draw_list, BuilderApp& app, const float tile_size, const ImVec2 origin, const int y)
+void draw_map_row(ImDrawList &draw_list, BuilderApp &app, const float tile_size,
+                  const ImVec2 origin, const int y)
 {
-    for (int x = 0; x < app.map->view().width; ++x) draw_map_tile(draw_list, app, tile_size, origin, x, y);
+    for (int x = 0; x < app.map->view().width; ++x)
+        draw_map_tile(draw_list, app, tile_size, origin, x, y);
 }
 
-void draw_canvas_window(BuilderApp& app)
+void draw_canvas_window(BuilderApp &app)
 {
     ImGui::SetNextWindowPos(kCanvasWindowPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(kCanvasWindowSize, ImGuiCond_Always);
     ImGui::Begin("Canvas", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
-    const auto& view = app.map->view();
-    const float tile_size = std::clamp(560.0f / static_cast<float>(std::max(view.width, view.height)), 34.0f, 72.0f);
+    const auto &view = app.map->view();
+    const float tile_size =
+        std::clamp(560.0f / static_cast<float>(std::max(view.width, view.height)), 34.0f, 72.0f);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 total_size(tile_size * view.width, tile_size * view.height);
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    draw_list->AddRectFilled(origin, ImVec2(origin.x + total_size.x, origin.y + total_size.y), IM_COL32(20, 24, 29, 255), 18.0f);
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddRectFilled(origin, ImVec2(origin.x + total_size.x, origin.y + total_size.y),
+                             IM_COL32(20, 24, 29, 255), 18.0f);
 
-    for (int y = 0; y < view.height; ++y) draw_map_row(*draw_list, app, tile_size, origin, y);
+    for (int y = 0; y < view.height; ++y)
+        draw_map_row(*draw_list, app, tile_size, origin, y);
 
     ImGui::Dummy(ImVec2(total_size.x, total_size.y));
     ImGui::End();
 }
-}  // namespace
+} // namespace
 
 int main()
 {
@@ -385,7 +410,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    GLFWwindow* window = glfwCreateWindow(1440, 900, "Type Erasure Builder", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(1440, 900, "Type Erasure Builder", nullptr, nullptr);
     if (window == nullptr)
     {
         std::fprintf(stderr, "Failed to create GLFW window\n");

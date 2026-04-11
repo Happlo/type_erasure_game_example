@@ -226,37 +226,6 @@ bool try_process_assignment(const std::string &segment, std::unordered_map<char,
     return true;
 }
 
-std::unordered_map<char, int> parse_assignments(std::string_view line)
-{
-    const auto segments = split_segments(line);
-    std::unordered_map<char, int> variables;
-    // Process assignments in reverse order to allow forward dependencies
-    for (auto it = segments.rbegin(); it != segments.rend(); ++it)
-    {
-        const auto &segment = *it;
-        if (segment.find(':') != std::string::npos)
-            if (!try_process_assignment(segment, variables))
-                return {};
-    }
-    return variables;
-}
-
-bool solve_with_assignments(std::string_view line, const std::unordered_map<char, int> &variables)
-{
-    const auto segments = split_segments(line);
-
-    for (const auto &segment : segments)
-    {
-        if (segment.find('=') != std::string::npos)
-        {
-            if (equation_is_correct(segment, variables))
-                return true;
-        }
-    }
-
-    return false;
-}
-
 std::pair<std::string, bool> extract_next_line(std::string_view grid_text, size_t &line_start)
 {
     const size_t line_end = grid_text.find('\n', line_start);
@@ -269,18 +238,6 @@ std::pair<std::string, bool> extract_next_line(std::string_view grid_text, size_
     return {line, has_more};
 }
 
-bool line_is_correct(std::string_view line)
-{
-    const std::string compact = strip_space(std::string(line));
-    if (compact.empty())
-        return false;
-
-    auto variables = parse_assignments(line);
-    if (variables.empty() && compact.find(':') != std::string::npos)
-        return false; // Had assignments but parsing failed
-
-    return solve_with_assignments(line, variables);
-}
 } // namespace
 
 bool solved_equation(const std::string_view grid_text)
