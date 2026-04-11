@@ -53,8 +53,6 @@ char glyph(const char &value) { return value; }
 
 char glyph(const core::Object &value) { return value.symbol; }
 
-core::CellView TypeErasedObject::view() const { return self_->view_(); }
-
 int grid_height(const Map &map) { return static_cast<int>(map.grid.size()); }
 
 int grid_width(const Map &map)

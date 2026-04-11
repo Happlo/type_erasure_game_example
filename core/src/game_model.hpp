@@ -50,16 +50,12 @@ char glyph(const char &value);
 
 char glyph(const core::Object &value);
 
-template <typename T>
-core::CellView view(const T &value)
+template <typename T> core::CellView view(const T &value)
 {
     return core::Object{.symbol = glyph(value)};
 }
 
-inline core::CellView view(const core::Empty &value)
-{
-    return core::Empty{.symbol = glyph(value)};
-}
+inline core::CellView view(const core::Empty &value) { return core::Empty{.symbol = glyph(value)}; }
 
 inline core::CellView view(const PlayerState &value)
 {
@@ -68,19 +64,17 @@ inline core::CellView view(const PlayerState &value)
     return player;
 }
 
-inline core::CellView view(const core::Object &value)
-{
-    return value;
-}
+inline core::CellView view(const core::Object &value) { return value; }
 
 class TypeErasedObject
 {
   public:
-    template <typename T> TypeErasedObject(T value) : self_(std::make_shared<Model<T>>(std::move(value)))
+    template <typename T>
+    TypeErasedObject(T value) : self_(std::make_shared<Model<T>>(std::move(value)))
     {
     }
 
-    core::CellView view() const;
+    core::CellView view() const { return self_->view_(); }
 
     template <typename T> bool is() const { return self_->type_() == std::type_index(typeid(T)); }
 
@@ -103,9 +97,7 @@ class TypeErasedObject
 
     template <typename T> struct Model : Concept
     {
-        explicit Model(T value) : data_(std::move(value))
-        {
-        }
+        explicit Model(T value) : data_(std::move(value)) {}
 
         core::CellView view_() const override
         {
@@ -139,7 +131,8 @@ template <typename T> class MakeObject
 
     TypeErasedObject build() &&
     {
-        if constexpr (std::is_same_v<T, core::Empty> || std::is_same_v<T, PlayerState> || std::is_same_v<T, core::Object>)
+        if constexpr (std::is_same_v<T, core::Empty> || std::is_same_v<T, PlayerState> ||
+                      std::is_same_v<T, core::Object>)
         {
             return TypeErasedObject(std::move(value_));
         }
