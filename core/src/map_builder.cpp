@@ -46,7 +46,7 @@ internal::Map make_empty_map(const int width, const int height)
 
     internal::Map map;
     map.grid.assign(static_cast<size_t>(height),
-                    std::vector<internal::Object>(static_cast<size_t>(width), Empty{}));
+                    std::vector<internal::TypeErasedObject>(static_cast<size_t>(width), Empty{}));
     return map;
 }
 
@@ -75,9 +75,9 @@ class DefaultMapBuilder final : public MapBuilder
 
     void resize(const int new_width, const int new_height) override
     {
-        std::vector<std::vector<internal::Object>> next(
+        std::vector<std::vector<internal::TypeErasedObject>> next(
             static_cast<size_t>(new_height),
-            std::vector<internal::Object>(static_cast<size_t>(new_width), Empty{}));
+            std::vector<internal::TypeErasedObject>(static_cast<size_t>(new_width), Empty{}));
         for (int y = 0; y < new_height && y < internal::grid_height(map_); ++y)
         {
             for (int x = 0; x < new_width && x < internal::grid_width(map_); ++x)
@@ -95,7 +95,7 @@ class DefaultMapBuilder final : public MapBuilder
     {
         if (is_player_symbol(brush.symbol))
         {
-            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = internal::Object(
+            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = internal::TypeErasedObject(
                 internal::PlayerState{.facing = player_facing_from_symbol(brush.symbol)});
             ensure_single_player(x, y);
             sync_view();

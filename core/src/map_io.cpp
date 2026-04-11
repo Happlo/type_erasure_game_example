@@ -25,29 +25,30 @@ internal::Facing player_facing_from_symbol(const char symbol)
     throw std::runtime_error("Invalid player symbol; expected one of '^', 'v', '<', '>'");
 }
 
-internal::Object object_from_tile(const json &tile)
+internal::TypeErasedObject object_from_tile(const json &tile)
 {
     const bool pushable = tile.value("pushable", false);
     const bool pickable = tile.value("pickable", false);
     const std::string symbol_text = tile.at("symbol").get<std::string>();
     const core::Object::ManipulationLevel manipulation_level =
         pickable ? core::Object::ManipulationLevel::Pick
-                 : (pushable ? core::Object::ManipulationLevel::Push : core::Object::ManipulationLevel::None);
+                 : (pushable ? core::Object::ManipulationLevel::Push
+                             : core::Object::ManipulationLevel::None);
 
     if (symbol_text == "Player")
-        return internal::Object(internal::PlayerState{}, manipulation_level);
+        return internal::TypeErasedObject(internal::PlayerState{});
     if (symbol_text.size() != 1)
         throw std::runtime_error("symbol must be one character or 'Player'");
 
     const char symbol = symbol_text[0];
     if (symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>')
     {
-        return internal::Object(internal::PlayerState{.facing = player_facing_from_symbol(symbol)}, manipulation_level);
+        return internal::TypeErasedObject(internal::PlayerState{.facing = player_facing_from_symbol(symbol)});
     }
-    return internal::Object(symbol, manipulation_level);
+    return internal::MakeObject(symbol).with_manipulation_level(manipulation_level);
 }
 
-json tile_from_object(const internal::Object &object, int x, int y)
+json tile_from_object(const internal::TypeErasedObject &object, int x, int y)
 {
     const core::CellView view = object.view();
     json tile{{"x", x}, {"y", y}, {"symbol", std::string(1, core::symbol_of(view))}};
@@ -84,7 +85,7 @@ internal::Map map_from_json(std::string_view json_text, const bool require_playe
     map.commits_left = root.value("resources", json::object()).value("commits", 6);
     map.undos_left = root.value("resources", json::object()).value("undos", 6);
     map.grid.assign(static_cast<size_t>(height),
-                    std::vector<internal::Object>(static_cast<size_t>(width), Empty{}));
+                    std::vector<internal::TypeErasedObject>(static_cast<size_t>(width), Empty{}));
 
     std::unordered_set<long long> occupied;
     const auto &tiles = root.at("tiles");

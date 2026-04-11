@@ -20,7 +20,6 @@ Facing facing_from_delta(const int dx, const int dy)
     return Facing::South;
 }
 
-
 char glyph(const Facing facing)
 {
     switch (facing)
@@ -37,10 +36,7 @@ char glyph(const Facing facing)
     return '@';
 }
 
-char glyph(const PlayerState &player)
-{
-    return glyph(player.facing);
-}
+char glyph(const PlayerState &player) { return glyph(player.facing); }
 
 char glyph(const core::Empty &) { return ' '; }
 
@@ -57,13 +53,7 @@ char glyph(const char &value) { return value; }
 
 char glyph(const core::Object &value) { return value.symbol; }
 
-core::CellView Object::view() const { return self_->view_(); }
-
-bool Object::is_empty() const { return self_->is_empty_(); }
-
-bool Object::is_player() const { return self_->is_player_(); }
-
-PlayerState Object::player_state() const { return self_->player_state_(); }
+core::CellView TypeErasedObject::view() const { return self_->view_(); }
 
 int grid_height(const Map &map) { return static_cast<int>(map.grid.size()); }
 
@@ -85,7 +75,7 @@ std::optional<Point> find_player(const Map &map)
     {
         for (int x = 0; x < grid_width(map); ++x)
         {
-            if (map.grid[y][x].is_player())
+            if (map.grid[y][x].is<PlayerState>())
                 return Point{x, y};
         }
     }
@@ -95,10 +85,12 @@ std::optional<Point> find_player(const Map &map)
 std::optional<core::Player> get_public_player(const Map &map)
 {
     const std::optional<Point> player_position = find_player(map);
-    if (!player_position.has_value()) return std::nullopt;
+    if (!player_position.has_value())
+        return std::nullopt;
 
     const PlayerState player_state =
-        map.grid[static_cast<size_t>(player_position->y)][static_cast<size_t>(player_position->x)].player_state();
+        map.grid[static_cast<size_t>(player_position->y)][static_cast<size_t>(player_position->x)]
+            .get<PlayerState>();
     core::Player player = player_state.player;
     player.symbol = glyph(player_state.facing);
     return player;
