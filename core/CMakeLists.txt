@@ -4,6 +4,8 @@ add_library(core STATIC
     src/game.cpp
     src/game_model.cpp
     src/grid_rules.cpp
+    src/object.cpp
+    src/player.cpp
     src/solution_rules.cpp
     src/map_io.cpp
     src/map_builder.cpp

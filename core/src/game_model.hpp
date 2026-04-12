@@ -12,6 +12,12 @@
 #include <variant>
 #include <vector>
 
+namespace core
+{
+CellView view(const Empty &value);
+CellView view(const Object &value);
+} // namespace core
+
 namespace core::internal
 {
 struct Point
@@ -20,46 +26,10 @@ struct Point
     int y{};
 };
 
-enum class Facing
-{
-    North,
-    South,
-    West,
-    East
-};
+struct PlayerState;
+core::CellView view(const PlayerState &value);
 
-struct PlayerState
-{
-    core::Player player{};
-    Facing facing{Facing::South};
-
-    static PlayerState from_delta(int dx, int dy, core::Player player = {});
-};
-
-Facing facing_from_delta(int dx, int dy);
-
-char glyph(Facing facing);
-
-char glyph(const PlayerState &player);
-
-char glyph(const core::Empty &);
-
-char glyph(const int &value);
-
-char glyph(const char &value);
-
-char glyph(const core::Object &value);
-
-template <typename T> core::CellView view(const T &value)
-{
-    return core::Object{.symbol = glyph(value)};
-}
-
-inline core::CellView view(const core::Empty &value) { return core::Empty{.symbol = glyph(value)}; }
-
-inline core::CellView view(const PlayerState &value) { return value.player; }
-
-inline core::CellView view(const core::Object &value) { return value; }
+template <typename T> core::CellView adl_view(const T &value) { return view(value); }
 
 class TypeErasedObject
 {
@@ -94,11 +64,7 @@ class TypeErasedObject
     {
         explicit Model(T value) : data_(std::move(value)) {}
 
-        core::CellView view_() const override
-        {
-            using core::internal::view;
-            return view(data_);
-        }
+        core::CellView view_() const override { return adl_view(data_); }
 
         std::type_index type_() const override { return std::type_index(typeid(T)); }
 
@@ -113,36 +79,10 @@ class TypeErasedObject
     std::shared_ptr<const Concept> self_;
 };
 
-template <typename T> class MakeObject
-{
-  public:
-    explicit MakeObject(T value) : value_(std::move(value)) {}
-
-    MakeObject with_manipulation_level(core::Object::ManipulationLevel manipulation_level)
-    {
-        manipulation_level_ = manipulation_level;
-        return *this;
-    }
-
-    TypeErasedObject build() &&
-    {
-        return TypeErasedObject(core::Object{
-            .symbol = glyph(value_),
-            .manipulation_level = manipulation_level_,
-        });
-    }
-
-    operator TypeErasedObject() && { return std::move(*this).build(); }
-
-  private:
-    T value_;
-    core::Object::ManipulationLevel manipulation_level_{core::Object::ManipulationLevel::None};
-};
-
 struct Map
 {
-    int commits_left{6};
-    int undos_left{6};
+    int commits_left{0};
+    int undos_left{0};
     std::vector<std::vector<TypeErasedObject>> grid;
 };
 
@@ -153,9 +93,6 @@ int grid_height(const Map &map);
 int grid_width(const Map &map);
 
 bool in_bounds(const Map &map, const Point &point);
-
-std::optional<Point> find_player(const Map &map);
-std::optional<core::Player> get_public_player(const Map &map);
 
 void commit(History &history);
 

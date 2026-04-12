@@ -2,6 +2,8 @@
 
 #include "game_model.hpp"
 #include "map_io.hpp"
+#include "object.hpp"
+#include "player.hpp"
 #include "solution_rules.hpp"
 
 #include <stdexcept>

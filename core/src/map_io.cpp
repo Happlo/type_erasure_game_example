@@ -1,5 +1,8 @@
 #include "map_io.hpp"
 
+#include "object.hpp"
+#include "player.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <stdexcept>

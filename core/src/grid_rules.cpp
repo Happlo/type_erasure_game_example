@@ -1,5 +1,7 @@
 #include "grid_rules.hpp"
 
+#include "player.hpp"
+
 namespace core::grid_rules
 {
 namespace
