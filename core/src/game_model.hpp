@@ -57,12 +57,7 @@ template <typename T> core::CellView view(const T &value)
 
 inline core::CellView view(const core::Empty &value) { return core::Empty{.symbol = glyph(value)}; }
 
-inline core::CellView view(const PlayerState &value)
-{
-    auto player = value.player;
-    player.symbol = glyph(value);
-    return player;
-}
+inline core::CellView view(const PlayerState &value) { return value.player; }
 
 inline core::CellView view(const core::Object &value) { return value; }
 
@@ -131,18 +126,10 @@ template <typename T> class MakeObject
 
     TypeErasedObject build() &&
     {
-        if constexpr (std::is_same_v<T, core::Empty> || std::is_same_v<T, PlayerState> ||
-                      std::is_same_v<T, core::Object>)
-        {
-            return TypeErasedObject(std::move(value_));
-        }
-        else
-        {
-            return TypeErasedObject(core::Object{
-                .symbol = glyph(value_),
-                .manipulation_level = manipulation_level_,
-            });
-        }
+        return TypeErasedObject(core::Object{
+            .symbol = glyph(value_),
+            .manipulation_level = manipulation_level_,
+        });
     }
 
     operator TypeErasedObject() && { return std::move(*this).build(); }

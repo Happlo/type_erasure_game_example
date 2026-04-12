@@ -4,7 +4,9 @@ namespace core::internal
 {
 PlayerState PlayerState::from_delta(const int dx, const int dy, core::Player player)
 {
-    return {.player = std::move(player), .facing = facing_from_delta(dx, dy)};
+    auto result = PlayerState{.player = std::move(player), .facing = facing_from_delta(dx, dy)};
+    result.player.symbol = glyph(result);
+    return result;
 }
 
 Facing facing_from_delta(const int dx, const int dy)
