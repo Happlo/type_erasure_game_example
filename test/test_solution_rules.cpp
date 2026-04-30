@@ -3,7 +3,32 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
+#include <map>
 #include <string>
+
+namespace
+{
+using core::solution_rules::EqualityStatus;
+using core::solution_rules::EquationResult;
+using core::solution_rules::Location;
+
+struct EvaluateEquationCase
+{
+    std::string grid;
+    std::map<char, int> resolved_variables;
+    std::map<Location, EqualityStatus> equal_sign_status;
+};
+
+void expect_evaluate_equation_result(const EvaluateEquationCase &test_case)
+{
+    const EquationResult result = core::solution_rules::evaluate_equation(test_case.grid);
+
+    EXPECT_EQ(result.resolved_variables, test_case.resolved_variables);
+    EXPECT_EQ(result.equal_sign_status, test_case.equal_sign_status);
+}
+
+} // namespace
 
 class SolvedEquationSuccessTest : public ::testing::TestWithParam<std::string>
 {
@@ -21,6 +46,31 @@ TEST_P(SolvedEquationSuccessTest, ReturnsTrue)
 TEST_P(SolvedEquationFailureTest, ReturnsFalse)
 {
     EXPECT_FALSE(core::solution_rules::solved_equation(GetParam()));
+}
+
+TEST(EvaluateEquationTest, ReturnsExpectedResults)
+{
+    const std::array test_cases{
+        EvaluateEquationCase{
+            .grid = "x+y=5#1+1=3\n"
+                    "x:2\n"
+                    "y:3\n",
+            .resolved_variables = {{'x', 2}, {'y', 3}},
+            .equal_sign_status = {{{3, 0}, EqualityStatus::Equal},
+                                  {{9, 0}, EqualityStatus::NotEqual}},
+        },
+        EvaluateEquationCase{
+            .grid = "x+y=5#7-3=4\n"
+                    "x:2\n"
+                    "y:x+1\n",
+            .resolved_variables = {},
+            .equal_sign_status = {{{3, 0}, EqualityStatus::NotEqual},
+                                  {{9, 0}, EqualityStatus::Equal}},
+        },
+    };
+
+    for (const auto &test_case : test_cases)
+        expect_evaluate_equation_result(test_case);
 }
 
 INSTANTIATE_TEST_SUITE_P(SolutionRules, SolvedEquationSuccessTest,

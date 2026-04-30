@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -238,48 +239,90 @@ std::pair<std::string, bool> extract_next_line(std::string_view grid_text, size_
     return {line, has_more};
 }
 
+std::map<char, int> to_sorted_map(const std::unordered_map<char, int> &variables)
+{
+    return {variables.begin(), variables.end()};
+}
+
+std::map<Location, EqualityStatus>
+collect_equal_sign_status(const std::vector<std::string> &lines,
+                          const std::unordered_map<char, int> &variables)
+{
+    std::map<Location, EqualityStatus> equal_sign_status;
+
+    for (int y = 0; y < static_cast<int>(lines.size()); ++y)
+    {
+        const std::string &line = lines[static_cast<size_t>(y)];
+        std::size_t segment_start = 0;
+
+        while (segment_start <= line.size())
+        {
+            const std::size_t delimiter_pos = line.find('#', segment_start);
+            const std::size_t segment_end =
+                delimiter_pos == std::string::npos ? line.size() : delimiter_pos;
+            const std::string_view segment(line.data() + segment_start,
+                                           segment_end - segment_start);
+            const std::size_t equals_pos = segment.find('=');
+
+            if (equals_pos != std::string_view::npos)
+            {
+                equal_sign_status[{static_cast<int>(segment_start + equals_pos), y}] =
+                    equation_is_correct(std::string(segment), variables) ? EqualityStatus::Equal
+                                                                         : EqualityStatus::NotEqual;
+            }
+
+            if (delimiter_pos == std::string::npos)
+                break;
+            segment_start = delimiter_pos + 1;
+        }
+    }
+
+    return equal_sign_status;
+}
+
 } // namespace
 
-bool solved_equation(const std::string_view grid_text)
+EquationResult evaluate_equation(const std::string_view grid_text)
 {
-    std::vector<std::string> all_assignment_segments;
+    EquationResult result;
     std::unordered_map<char, int> global_variables;
+    std::vector<std::string> all_assignment_segments;
+    std::vector<std::string> lines;
 
-    // First pass: collect all assignment segments from all lines
     size_t line_start = 0;
     while (true)
     {
         auto [line, has_more] = extract_next_line(grid_text, line_start);
+        lines.push_back(line);
         const auto segments = split_segments(line);
         for (const auto &segment : segments)
+        {
             if (segment.find(':') != std::string::npos)
                 all_assignment_segments.push_back(segment);
+        }
         if (!has_more)
             break;
     }
 
-    // Process assignments in reverse order globally
     for (auto it = all_assignment_segments.rbegin(); it != all_assignment_segments.rend(); ++it)
     {
         const auto &segment = *it;
         if (!try_process_assignment(segment, global_variables))
-            return false; // Invalid assignment
+        {
+            result.equal_sign_status = collect_equal_sign_status(lines, {});
+            return result;
+        }
     }
 
-    // Second pass: check equations with global variables
-    line_start = 0;
-    while (true)
-    {
-        auto [line, has_more] = extract_next_line(grid_text, line_start);
-        const auto segments = split_segments(line);
-        for (const auto &segment : segments)
-            if (segment.find('=') != std::string::npos)
-                if (equation_is_correct(segment, global_variables))
-                    return true;
-        if (!has_more)
-            break;
-    }
+    result.resolved_variables = to_sorted_map(global_variables);
+    result.equal_sign_status = collect_equal_sign_status(lines, global_variables);
+    return result;
+}
 
-    return false;
+bool solved_equation(const std::string_view grid_text)
+{
+    const EquationResult result = evaluate_equation(grid_text);
+    return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
+                       [](const auto &entry) { return entry.second == EqualityStatus::Equal; });
 }
 } // namespace core::solution_rules
