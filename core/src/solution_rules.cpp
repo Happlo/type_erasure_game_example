@@ -286,7 +286,7 @@ EquationResult evaluate_equation(const std::string_view grid_text)
 {
     EquationResult result;
     std::unordered_map<char, int> global_variables;
-    std::vector<std::string> all_assignment_segments;
+    std::vector<std::string> pending_assignment_segments;
     std::vector<std::string> lines;
 
     size_t line_start = 0;
@@ -298,19 +298,27 @@ EquationResult evaluate_equation(const std::string_view grid_text)
         for (const auto &segment : segments)
         {
             if (segment.find(':') != std::string::npos)
-                all_assignment_segments.push_back(segment);
+                pending_assignment_segments.push_back(segment);
         }
         if (!has_more)
             break;
     }
 
-    for (auto it = all_assignment_segments.rbegin(); it != all_assignment_segments.rend(); ++it)
+    bool progress = true;
+    while (progress && !pending_assignment_segments.empty())
     {
-        const auto &segment = *it;
-        if (!try_process_assignment(segment, global_variables))
+        progress = false;
+
+        for (auto it = pending_assignment_segments.begin(); it != pending_assignment_segments.end();)
         {
-            result.equal_sign_status = collect_equal_sign_status(lines, {});
-            return result;
+            if (!try_process_assignment(*it, global_variables))
+            {
+                ++it;
+                continue;
+            }
+
+            it = pending_assignment_segments.erase(it);
+            progress = true;
         }
     }
 

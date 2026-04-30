@@ -49,6 +49,8 @@ internal::Map make_empty_map(const int width, const int height)
     internal::Map map;
     map.grid.assign(static_cast<size_t>(height),
                     std::vector<internal::TypeErasedObject>(static_cast<size_t>(width), Empty{}));
+    map.grid[0][0] =
+        internal::TypeErasedObject(internal::PlayerState{.facing = internal::Facing::South});
     return map;
 }
 

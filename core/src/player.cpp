@@ -42,7 +42,12 @@ char glyph(const Facing facing)
 
 char glyph(const PlayerState &player) { return glyph(player.facing); }
 
-core::CellView view(const PlayerState &value) { return value.player; }
+core::CellView view(const PlayerState &value)
+{
+    core::Player player = value.player;
+    player.symbol = glyph(value.facing);
+    return player;
+}
 
 std::optional<Point> find_player(const Map &map)
 {

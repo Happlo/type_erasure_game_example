@@ -5,6 +5,7 @@
 #include "map_io.hpp"
 #include "solution_rules.hpp"
 
+#include <algorithm>
 #include <memory>
 
 namespace core
@@ -36,10 +37,10 @@ public:
     explicit DefaultGame(internal::Map map) : history_ {std::move(map)}
     {}
 
-    bool apply_event(const Event event) override
+    EquationResult apply_event(const Event event) override
     {
         auto& map = internal::current(history_);
-        const bool applied = [&]()
+        [&]()
         {
         switch (event)
         {
@@ -56,13 +57,8 @@ public:
         return false;
         }();
 
-        solved_ = solution_rules::solved_equation(map_to_grid_text(internal::current(history_)));
-        return applied;
-    }
-
-    bool solved() const override
-    {
-        return solved_;
+        last_result_ = solution_rules::evaluate_equation(map_to_grid_text(internal::current(history_)));
+        return last_result_;
     }
 
     MapView view() const override
@@ -77,7 +73,8 @@ public:
 
 private:
     internal::History history_;
-    bool solved_ {solution_rules::solved_equation(map_to_grid_text(internal::current(history_)))};
+    EquationResult last_result_ {
+        solution_rules::evaluate_equation(map_to_grid_text(internal::current(history_)))};
 };
 
 }  // namespace

@@ -23,6 +23,12 @@ namespace fs = std::filesystem;
 constexpr std::string_view kUsersDirectory = "users";
 constexpr std::string_view kMapsDirectory = "maps";
 
+bool is_solved(const EquationResult &result)
+{
+    return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
+                       [](const auto &entry) { return entry.second == EqualityStatus::Equal; });
+}
+
 fs::path users_directory() { return fs::path(kUsersDirectory); }
 
 fs::path maps_directory() { return fs::path(kMapsDirectory); }
@@ -196,23 +202,21 @@ class DefaultUser final : public User
         {
         }
 
-        bool apply_event(const Event event) override
+        EquationResult apply_event(const Event event) override
         {
-            const bool applied = inner_game_->apply_event(event);
-            maybe_persist_solve();
-            return applied;
+            const EquationResult result = inner_game_->apply_event(event);
+            maybe_persist_solve(result);
+            return result;
         }
-
-        bool solved() const override { return inner_game_->solved(); }
 
         MapView view() const override { return inner_game_->view(); }
 
         std::string to_json() const override { return inner_game_->to_json(); }
 
       private:
-        void maybe_persist_solve()
+        void maybe_persist_solve(const EquationResult &result)
         {
-            if (!inner_game_->solved())
+            if (!is_solved(result))
                 return;
             if (contains_map_id(solved_maps_, map_id_))
                 return;
