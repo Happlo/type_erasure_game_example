@@ -20,6 +20,7 @@
 namespace
 {
 using type_erasure::gui::draw_tile_symbol;
+using type_erasure::gui::GamePlayState;
 using type_erasure::gui::load_text_file;
 using type_erasure::gui::save_text_file;
 using type_erasure::gui::tile_fill;
@@ -29,6 +30,12 @@ constexpr ImVec2 kToolsWindowPos{24.0f, 24.0f};
 constexpr ImVec2 kToolsWindowSize{360.0f, 852.0f};
 constexpr ImVec2 kCanvasWindowPos{408.0f, 24.0f};
 constexpr ImVec2 kCanvasWindowSize{1008.0f, 852.0f};
+
+enum class BuilderMode
+{
+    Edit,
+    TryMap,
+};
 
 struct BuilderApp
 {
@@ -46,6 +53,8 @@ struct BuilderApp
     std::array<char, 2> symbol_buffer{brush.symbol, '\0'};
     std::array<char, 256> file_path{};
     std::optional<CellSelection> selected_cell;
+    BuilderMode mode{BuilderMode::Edit};
+    GamePlayState try_game;
 
     BuilderApp() { std::snprintf(file_path.data(), file_path.size(), "%s", "maps/try_map.json"); }
 };
@@ -244,6 +253,20 @@ void validate_map(const BuilderApp &app, std::string &status)
     }
 }
 
+void try_map(BuilderApp &app)
+{
+    try
+    {
+        type_erasure::gui::start_game(app.try_game, core::Game::from_json(app.map->to_json()),
+                                      "Trying current builder map.");
+        app.mode = BuilderMode::TryMap;
+    }
+    catch (const std::exception &ex)
+    {
+        app.status = std::string("Cannot try map: ") + ex.what();
+    }
+}
+
 void draw_brush_preview(const BuilderApp &app)
 {
     const core::CellView preview = [&]() -> core::CellView {
@@ -334,6 +357,9 @@ void draw_tools_window(BuilderApp &app)
         load_map(app);
     if (ImGui::Button("Validate", ImVec2(140.0f, 36.0f)))
         validate_map(app, app.status);
+    ImGui::SameLine();
+    if (ImGui::Button("Try Map", ImVec2(140.0f, 36.0f)))
+        try_map(app);
 
     ImGui::Spacing();
     ImGui::TextWrapped("%s", app.status.c_str());
@@ -397,6 +423,48 @@ void draw_canvas_window(BuilderApp &app)
     ImGui::Dummy(ImVec2(total_size.x, total_size.y));
     ImGui::End();
 }
+
+void return_to_builder(BuilderApp &app)
+{
+    type_erasure::gui::clear_game(app.try_game, "Ready.");
+    app.mode = BuilderMode::Edit;
+    app.status = "Returned from try map.";
+}
+
+void draw_try_tools_window(BuilderApp &app, const core::MapView &view)
+{
+    ImGui::SetNextWindowPos(kToolsWindowPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(kToolsWindowSize, ImGuiCond_Always);
+    ImGui::Begin("Try Map", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+
+    ImGui::TextUnformatted("Type Erasure Builder");
+    ImGui::Separator();
+    ImGui::TextWrapped("Playtesting the current builder map.");
+
+    ImGui::Spacing();
+    type_erasure::gui::draw_game_sidebar_state(app.try_game, view);
+
+    ImGui::Spacing();
+    type_erasure::gui::draw_game_action_controls(app.try_game);
+
+    ImGui::Spacing();
+    if (ImGui::Button("Back To Builder", ImVec2(310.0f, 38.0f)))
+        return_to_builder(app);
+
+    ImGui::Spacing();
+    type_erasure::gui::draw_game_status(app.try_game);
+
+    ImGui::End();
+}
+
+void draw_try_canvas_window(const GamePlayState &try_game, const core::MapView &view)
+{
+    ImGui::SetNextWindowPos(kCanvasWindowPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(kCanvasWindowSize, ImGuiCond_Always);
+    ImGui::Begin("Playtest", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+    type_erasure::gui::draw_game_grid(view, try_game.equation_result);
+    ImGui::End();
+}
 } // namespace
 
 int main()
@@ -436,10 +504,21 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        update_brush_symbol(app);
-        handle_keyboard_input(app);
-        draw_tools_window(app);
-        draw_canvas_window(app);
+        if (app.mode == BuilderMode::TryMap && app.try_game.game)
+        {
+            type_erasure::gui::handle_game_keyboard(app.try_game);
+            const core::MapView view = app.try_game.game->view();
+            draw_try_tools_window(app, view);
+            if (app.try_game.game)
+                draw_try_canvas_window(app.try_game, view);
+        }
+        else
+        {
+            update_brush_symbol(app);
+            handle_keyboard_input(app);
+            draw_tools_window(app);
+            draw_canvas_window(app);
+        }
 
         ImGui::Render();
         int display_w = 0;

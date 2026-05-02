@@ -1,9 +1,13 @@
 #include "shared.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cfloat>
+#include <cstdio>
 #include <fstream>
 #include <iterator>
 #include <type_traits>
+#include <utility>
 
 namespace type_erasure::gui
 {
@@ -13,6 +17,48 @@ ImVec4 color_from_rgb(const int r, const int g, const int b)
 {
     return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
 }
+
+std::string describe_new_assignments(const core::EquationResult& before,
+                                     const core::EquationResult& after)
+{
+    std::string out;
+
+    for (const auto& [symbol, value] : after.resolved_variables)
+    {
+        const auto it = before.resolved_variables.find(symbol);
+        if (it != before.resolved_variables.end() && it->second == value)
+            continue;
+
+        if (!out.empty())
+            out += ", ";
+        out.push_back(symbol);
+        out += "=" + std::to_string(value);
+    }
+
+    return out;
+}
+
+bool tile_has_equal_status(const core::EquationResult& result, const int x, const int y,
+                           core::EqualityStatus& status)
+{
+    const auto it = result.equal_sign_status.find(core::Location{x, y});
+    if (it == result.equal_sign_status.end())
+        return false;
+    status = it->second;
+    return true;
+}
+
+struct GridRenderContext
+{
+    ImDrawList* draw_list;
+    ImVec2 origin;
+    float tile_size;
+    bool solved;
+    const core::EquationResult* equation_result;
+};
+
+constexpr ImVec2 kMoveButtonSize{96.0f, 36.0f};
+constexpr ImVec2 kActionButtonSize{150.0f, 38.0f};
 }  // namespace
 
 bool load_text_file(const std::string& path, std::string& content)
@@ -64,6 +110,247 @@ void apply_style()
     colors[ImGuiCol_Text] = color_from_rgb(235, 233, 225);
     colors[ImGuiCol_TextDisabled] = color_from_rgb(143, 148, 154);
     colors[ImGuiCol_Border] = color_from_rgb(62, 68, 76);
+}
+
+bool game_is_solved(const core::EquationResult& result)
+{
+    return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
+                       [](const auto& entry)
+                       { return entry.second == core::EqualityStatus::Equal; });
+}
+
+void start_game(GamePlayState& state, std::unique_ptr<core::Game> game, std::string status)
+{
+    state.game = std::move(game);
+    state.equation_result.reset();
+    state.assignment_feedback.clear();
+    state.status = std::move(status);
+}
+
+void clear_game(GamePlayState& state, std::string status)
+{
+    state.game.reset();
+    state.equation_result.reset();
+    state.assignment_feedback.clear();
+    state.status = std::move(status);
+}
+
+bool trigger_game_event(GamePlayState& state, const core::Event event)
+{
+    if (!state.game)
+        return false;
+
+    const std::string before = state.game->to_json();
+    const core::EquationResult previous_result =
+        state.equation_result.value_or(core::EquationResult{});
+    state.equation_result = state.game->apply_event(event);
+    state.assignment_feedback = describe_new_assignments(previous_result, *state.equation_result);
+
+    if (game_is_solved(*state.equation_result))
+    {
+        state.status = state.assignment_feedback.empty()
+                           ? "Equation solved."
+                           : "Assigned " + state.assignment_feedback + ". Equation solved.";
+        return true;
+    }
+
+    const bool applied = before != state.game->to_json();
+    if (!applied)
+    {
+        state.status = "That action is blocked.";
+        return false;
+    }
+
+    if (!state.assignment_feedback.empty())
+    {
+        state.status = "Assigned " + state.assignment_feedback + ".";
+        return true;
+    }
+
+    switch (event)
+    {
+    case core::Event::MoveUp:
+    case core::Event::MoveLeft:
+    case core::Event::MoveDown:
+    case core::Event::MoveRight:
+        state.status = "Moved.";
+        break;
+    case core::Event::PickItem:
+        state.status = "Picked up item.";
+        break;
+    case core::Event::DropItem:
+        state.status = "Dropped item.";
+        break;
+    case core::Event::Commit:
+        state.status = "Committed map state.";
+        break;
+    case core::Event::Undo:
+        state.status = "Restored previous commit.";
+        break;
+    }
+
+    return true;
+}
+
+void handle_game_keyboard(GamePlayState& state)
+{
+    if (!state.game)
+        return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard)
+        return;
+
+    struct KeyBinding
+    {
+        ImGuiKey primary;
+        ImGuiKey alternate;
+        core::Event event;
+    };
+
+    constexpr std::array<KeyBinding, 8> bindings{{
+        {ImGuiKey_W, ImGuiKey_UpArrow, core::Event::MoveUp},
+        {ImGuiKey_A, ImGuiKey_LeftArrow, core::Event::MoveLeft},
+        {ImGuiKey_S, ImGuiKey_DownArrow, core::Event::MoveDown},
+        {ImGuiKey_D, ImGuiKey_RightArrow, core::Event::MoveRight},
+        {ImGuiKey_E, ImGuiKey_None, core::Event::PickItem},
+        {ImGuiKey_Q, ImGuiKey_None, core::Event::DropItem},
+        {ImGuiKey_C, ImGuiKey_None, core::Event::Commit},
+        {ImGuiKey_U, ImGuiKey_None, core::Event::Undo},
+    }};
+
+    for (const auto& binding : bindings)
+    {
+        if (ImGui::IsKeyPressed(binding.primary, false) ||
+            (binding.alternate != ImGuiKey_None && ImGui::IsKeyPressed(binding.alternate, false)))
+        {
+            trigger_game_event(state, binding.event);
+        }
+    }
+}
+
+bool game_action_button(const char* label, const ImVec2 size, GamePlayState& state,
+                        const core::Event event)
+{
+    if (!ImGui::Button(label, size))
+        return false;
+    return trigger_game_event(state, event);
+}
+
+void draw_game_status(const GamePlayState& state)
+{
+    if (!state.game)
+    {
+        ImGui::TextWrapped("%s", state.status.c_str());
+        return;
+    }
+
+    if (state.equation_result.has_value() && game_is_solved(*state.equation_result))
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.68f, 0.91f, 0.67f, 1.0f));
+        ImGui::TextWrapped("Solved. Load another map or reset to play again.");
+        ImGui::PopStyleColor();
+    }
+    else
+    {
+        ImGui::TextWrapped(
+            "Controls: WASD or arrow keys move. E picks up, Q drops, C commits, U undoes.");
+    }
+    ImGui::TextWrapped("%s", state.status.c_str());
+}
+
+void draw_game_map_stats(const core::MapView& view)
+{
+    ImGui::Text("Map commits: %d", view.commits_left);
+    ImGui::Text("Map undos: %d", view.undos_left);
+}
+
+void draw_game_sidebar_state(const GamePlayState& state, const core::MapView& view)
+{
+    draw_game_map_stats(view);
+    draw_game_inventory(view);
+    draw_game_variables(state.equation_result);
+    draw_game_assignment_feedback(state);
+}
+
+void draw_game_action_controls(GamePlayState& state)
+{
+    ImGui::TextUnformatted("Movement");
+    game_action_button("Up", kMoveButtonSize, state, core::Event::MoveUp);
+    game_action_button("Left", kMoveButtonSize, state, core::Event::MoveLeft);
+    ImGui::SameLine();
+    game_action_button("Down", kMoveButtonSize, state, core::Event::MoveDown);
+    ImGui::SameLine();
+    game_action_button("Right", kMoveButtonSize, state, core::Event::MoveRight);
+
+    ImGui::Spacing();
+    game_action_button("Pick  [E]", kActionButtonSize, state, core::Event::PickItem);
+    ImGui::SameLine();
+    game_action_button("Drop  [Q]", kActionButtonSize, state, core::Event::DropItem);
+    game_action_button("Commit  [C]", kActionButtonSize, state, core::Event::Commit);
+    ImGui::SameLine();
+    game_action_button("Undo  [U]", kActionButtonSize, state, core::Event::Undo);
+}
+
+void draw_game_variables(const std::optional<core::EquationResult>& result)
+{
+    ImGui::TextUnformatted("Variables");
+    if (!result.has_value())
+    {
+        ImGui::TextDisabled("No assignments evaluated yet.");
+        return;
+    }
+
+    if (result->resolved_variables.empty())
+    {
+        ImGui::TextDisabled("None");
+        return;
+    }
+
+    bool first = true;
+    for (const auto& [symbol, value] : result->resolved_variables)
+    {
+        if (!first)
+            ImGui::SameLine();
+        first = false;
+        ImGui::Text("%c=%d", symbol, value);
+    }
+}
+
+void draw_game_assignment_feedback(const GamePlayState& state)
+{
+    if (state.assignment_feedback.empty())
+        return;
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.84f, 0.45f, 1.0f));
+    ImGui::TextWrapped("Assigned: %s", state.assignment_feedback.c_str());
+    ImGui::PopStyleColor();
+}
+
+void draw_game_inventory(const core::MapView& view)
+{
+    ImGui::TextUnformatted("Inventory");
+    if (!view.player.has_value() || view.player->inventory.empty())
+    {
+        ImGui::TextDisabled("Empty");
+        return;
+    }
+
+    for (size_t i = 0; i < view.player->inventory.size(); ++i)
+    {
+        const auto& item = view.player->inventory[i];
+        ImGui::PushID(static_cast<int>(i));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.38f, 0.58f, 0.77f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.46f, 0.67f, 0.87f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.31f, 0.50f, 0.69f, 1.0f));
+        char label[8];
+        std::snprintf(label, sizeof(label), "%c", item.symbol);
+        ImGui::Button(label, ImVec2(36.0f, 32.0f));
+        ImGui::PopStyleColor(3);
+        ImGui::PopID();
+        if (i + 1 < view.player->inventory.size())
+            ImGui::SameLine();
+    }
 }
 
 ImU32 tile_fill(const core::CellView& cell)
@@ -120,5 +407,95 @@ void draw_tile_symbol(ImDrawList& draw_list, const ImVec2& cell_min, const ImVec
         cell_min.x + ((cell_max.x - cell_min.x) - text_size.x) * 0.5f,
         cell_min.y + ((cell_max.y - cell_min.y) - text_size.y) * 0.5f);
     draw_list.AddText(font, font_size, text_pos, color, glyph);
+}
+
+void draw_game_tile_symbol(const GridRenderContext& ctx, const core::CellView& cell,
+                           const ImVec2 cell_min, const ImVec2 cell_max)
+{
+    const float font_size = ctx.tile_size * 0.58f;
+    draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, core::symbol_of(cell), font_size);
+}
+
+void draw_game_tile(const GridRenderContext& ctx, const core::CellView& cell, const int x,
+                    const int y)
+{
+    const ImVec2 cell_min(ctx.origin.x + x * ctx.tile_size, ctx.origin.y + y * ctx.tile_size);
+    const ImVec2 cell_max(cell_min.x + ctx.tile_size - 4.0f, cell_min.y + ctx.tile_size - 4.0f);
+    ImU32 fill = tile_fill(cell);
+    ImU32 outline = ctx.solved ? IM_COL32(182, 240, 175, 255) : tile_outline(cell);
+    float thickness = ctx.solved ? 3.0f : 2.0f;
+
+    if (core::symbol_of(cell) == '=' && ctx.equation_result != nullptr)
+    {
+        core::EqualityStatus equality_status;
+        if (tile_has_equal_status(*ctx.equation_result, x, y, equality_status))
+        {
+            if (equality_status == core::EqualityStatus::Equal)
+            {
+                fill = IM_COL32(36, 88, 54, 255);
+                outline = IM_COL32(154, 236, 170, 255);
+            }
+            else
+            {
+                fill = IM_COL32(92, 39, 39, 255);
+                outline = IM_COL32(235, 126, 126, 255);
+            }
+            thickness = 3.0f;
+        }
+    }
+
+    ctx.draw_list->AddRectFilled(cell_min, cell_max, fill, 12.0f);
+    ctx.draw_list->AddRect(cell_min, cell_max, outline, 12.0f, 0, thickness);
+    draw_game_tile_symbol(ctx, cell, cell_min, cell_max);
+}
+
+void draw_game_solved_badge(ImDrawList& draw_list, const ImVec2 origin)
+{
+    const char* message = "Equation Solved";
+    ImFont* font = ImGui::GetFont();
+    const float font_size = 30.0f;
+    const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, message);
+    const ImVec2 badge_min(origin.x + 18.0f, origin.y + 18.0f);
+    const ImVec2 badge_max(badge_min.x + text_size.x + 28.0f, badge_min.y + text_size.y + 18.0f);
+    const ImVec2 text_pos(badge_min.x + 14.0f, badge_min.y + 9.0f);
+    draw_list.AddRectFilled(badge_min, badge_max, IM_COL32(97, 181, 92, 235), 12.0f);
+    draw_list.AddText(font, font_size, text_pos, IM_COL32(250, 255, 247, 255), message);
+}
+
+void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const ImVec2 board_max,
+                               const bool solved)
+{
+    draw_list.AddRectFilled(origin, board_max,
+                            solved ? IM_COL32(23, 43, 30, 255) : IM_COL32(20, 24, 29, 255),
+                            18.0f);
+    if (!solved)
+        return;
+
+    draw_list.AddRect(origin, board_max, IM_COL32(137, 224, 151, 255), 18.0f, 0, 4.0f);
+    draw_list.AddRect(origin, board_max, IM_COL32(195, 255, 204, 120), 18.0f, 0, 10.0f);
+}
+
+void draw_game_grid(const core::MapView& view, const std::optional<core::EquationResult>& result)
+{
+    const bool solved = result.has_value() && game_is_solved(*result);
+    const float tile_size =
+        std::clamp(560.0f / static_cast<float>(std::max(view.width, view.height)), 36.0f, 72.0f);
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const ImVec2 total_size(tile_size * view.width, tile_size * view.height);
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImVec2 board_max(origin.x + total_size.x, origin.y + total_size.y);
+    const GridRenderContext ctx{
+        draw_list, origin, tile_size, solved, result.has_value() ? &*result : nullptr};
+
+    draw_game_grid_background(*draw_list, origin, board_max, solved);
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+            draw_game_tile(ctx, view.at(x, y), x, y);
+    }
+    if (solved)
+        draw_game_solved_badge(*draw_list, origin);
+
+    ImGui::Dummy(ImVec2(total_size.x, total_size.y));
 }
 }  // namespace type_erasure::gui
