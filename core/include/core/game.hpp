@@ -3,8 +3,8 @@
 #include "equation_result.hpp"
 #include "map.hpp"
 
+#include <filesystem>
 #include <memory>
-#include <string_view>
 
 namespace core
 {
@@ -25,9 +25,9 @@ class Game
   public:
     virtual ~Game() = default;
 
-    virtual EquationResult apply_event(Event event) = 0;
+    virtual GameResult apply_event(Event event) = 0;
     virtual MapView view() const = 0;
 
-    static std::unique_ptr<Game> from_json(std::string_view json_text);
+    static std::unique_ptr<Game> load_from_file(const std::filesystem::path &path);
 };
 } // namespace core

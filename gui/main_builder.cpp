@@ -19,12 +19,10 @@
 
 namespace
 {
-using type_erasure::gui::draw_tile_symbol;
-using type_erasure::gui::GamePlayState;
-using type_erasure::gui::load_text_file;
-using type_erasure::gui::save_text_file;
-using type_erasure::gui::tile_fill;
-using type_erasure::gui::tile_outline;
+using gui::draw_tile_symbol;
+using gui::GamePlayState;
+using gui::tile_fill;
+using gui::tile_outline;
 
 constexpr ImVec2 kToolsWindowPos{24.0f, 24.0f};
 constexpr ImVec2 kToolsWindowSize{360.0f, 852.0f};
@@ -208,48 +206,42 @@ void resize_map(BuilderApp &app)
 
 void load_map(BuilderApp &app)
 {
-    std::string text;
-    if (!load_text_file(app.file_path.data(), text))
+    try
     {
-        app.status = "Failed to load file.";
-        return;
+        app.map = core::MapBuilder::load_from_file(app.file_path.data());
+        sync_size_from_map(app);
+        app.selected_cell.reset();
+        app.status = "Loaded map.";
     }
-
-    std::string error;
-    auto parsed = core::MapBuilder::from_json(text, error);
-    if (!parsed)
+    catch (const std::exception &ex)
     {
-        app.status = "Invalid map JSON: " + error;
-        return;
+        app.status = std::string("Failed to load map: ") + ex.what();
     }
-
-    app.map = std::move(*parsed);
-    sync_size_from_map(app);
-    app.selected_cell.reset();
-    app.status = "Loaded map JSON.";
 }
 
 void save_map(const BuilderApp &app, std::string &status)
 {
-    if (!save_text_file(app.file_path.data(), app.map->to_json()))
+    try
     {
-        status = "Failed to save file.";
-        return;
+        app.map->save_to_file(app.file_path.data());
+        status = "Saved map.";
     }
-
-    status = "Saved map JSON.";
+    catch (const std::exception &ex)
+    {
+        status = std::string("Failed to save map: ") + ex.what();
+    }
 }
 
 void validate_map(const BuilderApp &app, std::string &status)
 {
     try
     {
-        (void)core::Game::from_json(app.map->to_json());
-        status = "Core parser validation passed.";
+        (void)app.map->create_game();
+        status = "Map validation passed.";
     }
     catch (const std::exception &ex)
     {
-        status = std::string("Core parser validation failed: ") + ex.what();
+        status = std::string("Map validation failed: ") + ex.what();
     }
 }
 
@@ -257,7 +249,7 @@ void try_map(BuilderApp &app)
 {
     try
     {
-        type_erasure::gui::start_game(app.try_game, core::Game::from_json(app.map->to_json()),
+        gui::start_game(app.try_game, app.map->create_game(),
                                       "Trying current builder map.");
         app.mode = BuilderMode::TryMap;
     }
@@ -350,10 +342,10 @@ void draw_tools_window(BuilderApp &app)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::InputText("File", app.file_path.data(), app.file_path.size());
-    if (ImGui::Button("Save JSON", ImVec2(140.0f, 36.0f)))
+    if (ImGui::Button("Save Map", ImVec2(140.0f, 36.0f)))
         save_map(app, app.status);
     ImGui::SameLine();
-    if (ImGui::Button("Load JSON", ImVec2(140.0f, 36.0f)))
+    if (ImGui::Button("Load Map", ImVec2(140.0f, 36.0f)))
         load_map(app);
     if (ImGui::Button("Validate", ImVec2(140.0f, 36.0f)))
         validate_map(app, app.status);
@@ -426,7 +418,7 @@ void draw_canvas_window(BuilderApp &app)
 
 void return_to_builder(BuilderApp &app)
 {
-    type_erasure::gui::clear_game(app.try_game, "Ready.");
+    gui::clear_game(app.try_game, "Ready.");
     app.mode = BuilderMode::Edit;
     app.status = "Returned from try map.";
 }
@@ -442,17 +434,17 @@ void draw_try_tools_window(BuilderApp &app, const core::MapView &view)
     ImGui::TextWrapped("Playtesting the current builder map.");
 
     ImGui::Spacing();
-    type_erasure::gui::draw_game_sidebar_state(app.try_game, view);
+    gui::draw_game_sidebar_state(app.try_game, view);
 
     ImGui::Spacing();
-    type_erasure::gui::draw_game_action_controls(app.try_game);
+    gui::draw_game_action_controls(app.try_game);
 
     ImGui::Spacing();
     if (ImGui::Button("Back To Builder", ImVec2(310.0f, 38.0f)))
         return_to_builder(app);
 
     ImGui::Spacing();
-    type_erasure::gui::draw_game_status(app.try_game);
+    gui::draw_game_status(app.try_game);
 
     ImGui::End();
 }
@@ -462,7 +454,7 @@ void draw_try_canvas_window(const GamePlayState &try_game, const core::MapView &
     ImGui::SetNextWindowPos(kCanvasWindowPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(kCanvasWindowSize, ImGuiCond_Always);
     ImGui::Begin("Playtest", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-    type_erasure::gui::draw_game_grid(view, try_game.equation_result);
+    gui::draw_game_grid(view, try_game.equation_result);
     ImGui::End();
 }
 } // namespace
@@ -491,7 +483,7 @@ int main()
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    type_erasure::gui::apply_style();
+    gui::apply_style();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
@@ -506,7 +498,7 @@ int main()
 
         if (app.mode == BuilderMode::TryMap && app.try_game.game)
         {
-            type_erasure::gui::handle_game_keyboard(app.try_game);
+            gui::handle_game_keyboard(app.try_game);
             const core::MapView view = app.try_game.game->view();
             draw_try_tools_window(app, view);
             if (app.try_game.game)

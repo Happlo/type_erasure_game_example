@@ -5,6 +5,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -136,5 +138,27 @@ std::string map_to_json(const internal::Map &map)
 
     root["tiles"] = tiles;
     return root.dump(2);
+}
+
+internal::Map map_from_file(const std::filesystem::path &path, const bool require_player)
+{
+    std::ifstream input(path);
+    if (!input)
+        throw std::runtime_error("Failed to open map file: " + path.string());
+
+    const std::string text{std::istreambuf_iterator<char>(input),
+                           std::istreambuf_iterator<char>()};
+    return map_from_json(text, require_player);
+}
+
+void map_to_file(const internal::Map &map, const std::filesystem::path &path)
+{
+    std::ofstream output(path);
+    if (!output)
+        throw std::runtime_error("Failed to write map file: " + path.string());
+
+    output << map_to_json(map);
+    if (!output)
+        throw std::runtime_error("Failed to finish writing map file: " + path.string());
 }
 } // namespace core::map_io

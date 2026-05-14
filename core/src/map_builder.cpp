@@ -1,5 +1,6 @@
 #include "core/map_builder.hpp"
 
+#include "game_factory.hpp"
 #include "game_model.hpp"
 #include "map_io.hpp"
 #include "object.hpp"
@@ -125,7 +126,17 @@ class DefaultMapBuilder final : public MapBuilder
         sync_view();
     }
 
-    std::string to_json() const override { return map_io::map_to_json(map_); }
+    std::unique_ptr<Game> create_game() const override
+    {
+        if (!internal::find_player(map_).has_value())
+            throw std::runtime_error("Player position not found");
+        return internal::make_game(map_);
+    }
+
+    void save_to_file(const std::filesystem::path &path) const override
+    {
+        map_io::map_to_file(map_, path);
+    }
 
   private:
     void ensure_single_player(const int keep_x, const int keep_y)
@@ -162,6 +173,11 @@ std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height
     return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height));
 }
 
+std::unique_ptr<MapBuilder> MapBuilder::load_from_file(const std::filesystem::path &path)
+{
+    return std::make_unique<DefaultMapBuilder>(map_io::map_from_file(path, false));
+}
+
 const std::vector<char> &MapBuilder::solver_operators() { return solution_rules::OPERATORS; }
 
 const std::vector<char> &MapBuilder::equation_delimiters()
@@ -169,19 +185,19 @@ const std::vector<char> &MapBuilder::equation_delimiters()
     return solution_rules::EQUATION_DELIMITERS;
 }
 
-std::optional<std::unique_ptr<MapBuilder>> MapBuilder::from_json(const std::string &text,
-                                                                 std::string &error_message)
-{
-    try
-    {
-        return std::make_optional<std::unique_ptr<MapBuilder>>(
-            std::make_unique<DefaultMapBuilder>(map_io::map_from_json(text, false)));
-    }
-    catch (const std::exception &ex)
-    {
-        error_message = ex.what();
-        return std::nullopt;
-    }
-}
+// std::optional<std::unique_ptr<MapBuilder>> MapBuilder::from_json(const std::string &text,
+//                                                                  std::string &error_message)
+// {
+//     try
+//     {
+//         return std::make_optional<std::unique_ptr<MapBuilder>>(
+//             std::make_unique<DefaultMapBuilder>(map_io::map_from_json(text, false)));
+//     }
+//     catch (const std::exception &ex)
+//     {
+//         error_message = ex.what();
+//         return std::nullopt;
+//     }
+// }
 
 } // namespace core

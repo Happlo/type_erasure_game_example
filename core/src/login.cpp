@@ -23,7 +23,7 @@ namespace fs = std::filesystem;
 constexpr std::string_view kUsersDirectory = "users";
 constexpr std::string_view kMapsDirectory = "maps";
 
-bool is_solved(const EquationResult &result)
+bool is_solved(const GameResult &result)
 {
     return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
                        [](const auto &entry) { return entry.second == EqualityStatus::Equal; });
@@ -188,7 +188,7 @@ class DefaultUser final : public User
             throw std::runtime_error("Unknown map: " + map_id);
         return std::make_unique<UserGame>(
             username_, map_id, solved_maps_,
-            Game::from_json(read_text_file(maps_directory() / (map_id + ".json"))));
+            Game::load_from_file(maps_directory() / (map_id + ".json")));
     }
 
   private:
@@ -202,9 +202,9 @@ class DefaultUser final : public User
         {
         }
 
-        EquationResult apply_event(const Event event) override
+        GameResult apply_event(const Event event) override
         {
-            const EquationResult result = inner_game_->apply_event(event);
+            const GameResult result = inner_game_->apply_event(event);
             maybe_persist_solve(result);
             return result;
         }
@@ -212,7 +212,7 @@ class DefaultUser final : public User
         MapView view() const override { return inner_game_->view(); }
 
       private:
-        void maybe_persist_solve(const EquationResult &result)
+        void maybe_persist_solve(const GameResult &result)
         {
             if (!is_solved(result))
                 return;

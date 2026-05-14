@@ -1,5 +1,6 @@
 #include "core/game.hpp"
 
+#include "game_factory.hpp"
 #include "game_model.hpp"
 #include "grid_rules.hpp"
 #include "map_io.hpp"
@@ -37,7 +38,7 @@ public:
     explicit DefaultGame(internal::Map map) : history_ {std::move(map)}
     {}
 
-    EquationResult apply_event(const Event event) override
+    GameResult apply_event(const Event event) override
     {
         auto& map = internal::current(history_);
         [&]()
@@ -68,14 +69,22 @@ public:
 
 private:
     internal::History history_;
-    EquationResult last_result_ {
+    GameResult last_result_ {
         solution_rules::evaluate_equation(map_to_grid_text(internal::current(history_)))};
 };
 
 }  // namespace
 
-std::unique_ptr<Game> Game::from_json(const std::string_view json_text)
+namespace internal
 {
-    return std::make_unique<DefaultGame>(map_io::map_from_json(json_text));
+std::unique_ptr<Game> make_game(Map map)
+{
+    return std::make_unique<DefaultGame>(std::move(map));
+}
+}  // namespace internal
+
+std::unique_ptr<Game> Game::load_from_file(const std::filesystem::path &path)
+{
+    return internal::make_game(map_io::map_from_file(path));
 }
 }  // namespace core

@@ -4,12 +4,10 @@
 #include <array>
 #include <cfloat>
 #include <cstdio>
-#include <fstream>
-#include <iterator>
 #include <type_traits>
 #include <utility>
 
-namespace type_erasure::gui
+namespace gui
 {
 namespace
 {
@@ -18,8 +16,8 @@ ImVec4 color_from_rgb(const int r, const int g, const int b)
     return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
 }
 
-std::string describe_new_assignments(const core::EquationResult& before,
-                                     const core::EquationResult& after)
+std::string describe_new_assignments(const core::GameResult& before,
+                                     const core::GameResult& after)
 {
     std::string out;
 
@@ -38,7 +36,7 @@ std::string describe_new_assignments(const core::EquationResult& before,
     return out;
 }
 
-bool tile_has_equal_status(const core::EquationResult& result, const int x, const int y,
+bool tile_has_equal_status(const core::GameResult& result, const int x, const int y,
                            core::EqualityStatus& status)
 {
     const auto it = result.equal_sign_status.find(core::Location{x, y});
@@ -54,28 +52,12 @@ struct GridRenderContext
     ImVec2 origin;
     float tile_size;
     bool solved;
-    const core::EquationResult* equation_result;
+    const core::GameResult* equation_result;
 };
 
 constexpr ImVec2 kMoveButtonSize{96.0f, 36.0f};
 constexpr ImVec2 kActionButtonSize{150.0f, 38.0f};
 }  // namespace
-
-bool load_text_file(const std::string& path, std::string& content)
-{
-    std::ifstream input(path);
-    if (!input) return false;
-    content.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-    return true;
-}
-
-bool save_text_file(const std::string& path, const std::string_view content)
-{
-    std::ofstream output(path);
-    if (!output) return false;
-    output << content;
-    return static_cast<bool>(output);
-}
 
 void apply_style()
 {
@@ -112,7 +94,7 @@ void apply_style()
     colors[ImGuiCol_Border] = color_from_rgb(62, 68, 76);
 }
 
-bool game_is_solved(const core::EquationResult& result)
+bool game_is_solved(const core::GameResult& result)
 {
     return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
                        [](const auto& entry)
@@ -140,8 +122,8 @@ bool trigger_game_event(GamePlayState& state, const core::Event event)
     if (!state.game)
         return false;
 
-    const core::EquationResult previous_result =
-        state.equation_result.value_or(core::EquationResult{});
+    const core::GameResult previous_result =
+        state.equation_result.value_or(core::GameResult{});
     state.equation_result = state.game->apply_event(event);
     state.assignment_feedback = describe_new_assignments(previous_result, *state.equation_result);
 
@@ -284,7 +266,7 @@ void draw_game_action_controls(GamePlayState& state)
     game_action_button("Undo  [U]", kActionButtonSize, state, core::Event::Undo);
 }
 
-void draw_game_variables(const std::optional<core::EquationResult>& result)
+void draw_game_variables(const std::optional<core::GameResult>& result)
 {
     ImGui::TextUnformatted("Variables");
     if (!result.has_value())
@@ -467,7 +449,7 @@ void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const
     draw_list.AddRect(origin, board_max, IM_COL32(195, 255, 204, 120), 18.0f, 0, 10.0f);
 }
 
-void draw_game_grid(const core::MapView& view, const std::optional<core::EquationResult>& result)
+void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result)
 {
     const bool solved = result.has_value() && game_is_solved(*result);
     const float tile_size =
@@ -490,4 +472,4 @@ void draw_game_grid(const core::MapView& view, const std::optional<core::Equatio
 
     ImGui::Dummy(ImVec2(total_size.x, total_size.y));
 }
-}  // namespace type_erasure::gui
+}  // namespace gui
