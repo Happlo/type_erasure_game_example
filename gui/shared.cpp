@@ -140,7 +140,6 @@ bool trigger_game_event(GamePlayState& state, const core::Event event)
     if (!state.game)
         return false;
 
-    const std::string before = state.game->to_json();
     const core::EquationResult previous_result =
         state.equation_result.value_or(core::EquationResult{});
     state.equation_result = state.game->apply_event(event);
@@ -152,13 +151,6 @@ bool trigger_game_event(GamePlayState& state, const core::Event event)
                            ? "Equation solved."
                            : "Assigned " + state.assignment_feedback + ". Equation solved.";
         return true;
-    }
-
-    const bool applied = before != state.game->to_json();
-    if (!applied)
-    {
-        state.status = "That action is blocked.";
-        return false;
     }
 
     if (!state.assignment_feedback.empty())

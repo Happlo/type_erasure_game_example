@@ -211,8 +211,6 @@ class DefaultUser final : public User
 
         MapView view() const override { return inner_game_->view(); }
 
-        std::string to_json() const override { return inner_game_->to_json(); }
-
       private:
         void maybe_persist_solve(const EquationResult &result)
         {

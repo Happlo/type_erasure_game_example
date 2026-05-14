@@ -66,11 +66,6 @@ public:
         return build_view(internal::current(history_));
     }
 
-    std::string to_json() const override
-    {
-        return map_io::map_to_json(internal::current(history_));
-    }
-
 private:
     internal::History history_;
     EquationResult last_result_ {
