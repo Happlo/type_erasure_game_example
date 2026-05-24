@@ -58,27 +58,29 @@ internal::Map make_empty_map(const int width, const int height)
 class DefaultMapBuilder final : public MapBuilder
 {
   public:
-    DefaultMapBuilder() : map_(make_empty_map(kDefaultMapWidth, kDefaultMapHeight)) { sync_view(); }
+    DefaultMapBuilder() : map_(make_empty_map(kDefaultMapWidth, kDefaultMapHeight)) {}
 
-    explicit DefaultMapBuilder(internal::Map map) : map_(std::move(map)) { sync_view(); }
+    explicit DefaultMapBuilder(internal::Map map) : map_(std::move(map)) {}
 
-    const MapView &view() const override { return view_; }
+    const MapView &view() const override
+    {
+        view_ = internal::build_view(map_);
+        return view_;
+    }
 
-    const CellView &at(const int x, const int y) const override { return view_.at(x, y); }
-
-    void set_commits_left(const int commits_left) override
+    MapBuilder &set_commits_left(const int commits_left) override
     {
         map_.commits_left = commits_left;
-        sync_view();
+        return *this;
     }
 
-    void set_undos_left(const int undos_left) override
+    MapBuilder &set_undos_left(const int undos_left) override
     {
         map_.undos_left = undos_left;
-        sync_view();
+        return *this;
     }
 
-    void resize(const int new_width, const int new_height) override
+    MapBuilder &resize(const int new_width, const int new_height) override
     {
         std::vector<std::vector<internal::TypeErasedObject>> next(
             static_cast<size_t>(new_height),
@@ -93,18 +95,17 @@ class DefaultMapBuilder final : public MapBuilder
         }
 
         map_.grid = std::move(next);
-        sync_view();
+        return *this;
     }
 
-    void apply_brush(const int x, const int y, const Brush &brush) override
+    MapBuilder &apply_brush(const int x, const int y, const Brush &brush) override
     {
         if (is_player_symbol(brush.symbol))
         {
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = internal::TypeErasedObject(
                 internal::PlayerState{.facing = player_facing_from_symbol(brush.symbol)});
             ensure_single_player(x, y);
-            sync_view();
-            return;
+            return *this;
         }
 
         if ('0' <= brush.symbol && brush.symbol <= '9')
@@ -117,13 +118,13 @@ class DefaultMapBuilder final : public MapBuilder
             map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
                 MakeObject(brush.symbol).with_manipulation_level(brush.manipulation_level);
         }
-        sync_view();
+        return *this;
     }
 
-    void clear_cell(const int x, const int y) override
+    MapBuilder &clear_cell(const int x, const int y) override
     {
         map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = MakeObject(Empty{});
-        sync_view();
+        return *this;
     }
 
     std::unique_ptr<Game> create_game() const override
@@ -156,9 +157,7 @@ class DefaultMapBuilder final : public MapBuilder
         }
     }
 
-    void sync_view() { view_ = internal::build_view(map_); }
-
-    MapView view_;
+    mutable MapView view_;
     internal::Map map_;
 };
 } // namespace

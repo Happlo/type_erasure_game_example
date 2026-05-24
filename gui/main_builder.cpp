@@ -132,7 +132,7 @@ void clear_selected_cell(BuilderApp &app)
 void select_cell(BuilderApp &app, const int x, const int y)
 {
     app.selected_cell = BuilderApp::CellSelection{.x = x, .y = y};
-    const core::CellView &cell = app.map->at(x, y);
+    const core::CellView &cell = app.map->view().at(x, y);
     if (std::holds_alternative<core::Empty>(cell))
     {
         app.brush.symbol = '*';
@@ -249,8 +249,7 @@ void try_map(BuilderApp &app)
 {
     try
     {
-        gui::start_game(app.try_game, app.map->create_game(),
-                                      "Trying current builder map.");
+        gui::start_game(app.try_game, app.map->create_game(), "Trying current builder map.");
         app.mode = BuilderMode::TryMap;
     }
     catch (const std::exception &ex)
@@ -362,7 +361,7 @@ void draw_tools_window(BuilderApp &app)
 void draw_map_tile(ImDrawList &draw_list, BuilderApp &app, const float tile_size,
                    const ImVec2 origin, const int x, const int y)
 {
-    const core::CellView &cell = app.map->at(x, y);
+    const core::CellView &cell = app.map->view().at(x, y);
     const ImVec2 cell_min(origin.x + x * tile_size, origin.y + y * tile_size);
     const ImVec2 cell_max(cell_min.x + tile_size - 4.0f, cell_min.y + tile_size - 4.0f);
     draw_list.AddRectFilled(cell_min, cell_max, tile_fill(cell), 12.0f);

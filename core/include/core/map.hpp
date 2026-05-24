@@ -39,6 +39,13 @@ inline char symbol_of(const CellView &cell)
     return std::visit([](const auto &value) { return value.symbol; }, cell);
 }
 
+inline bool operator==(const CellView &cell, const char symbol)
+{
+    return symbol_of(cell) == symbol;
+}
+
+inline bool operator==(const char symbol, const CellView &cell) { return cell == symbol; }
+
 struct MapView
 {
     int width{0};

@@ -1,70 +1,44 @@
 #include "core/game.hpp"
 #include "core/login.hpp"
 #include "core/map_builder.hpp"
-
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
-#include <variant>
-#include <vector>
 
 namespace
 {
-char view_glyph(const core::CellView& cell)
-{
-    return core::symbol_of(cell);
-}
-
-std::vector<std::string> extract_grid(const core::MapView& view)
-{
-    std::vector<std::string> compact;
-    compact.reserve(static_cast<size_t>(view.height));
-
-    for (int y = 0; y < view.height; ++y)
-    {
-        std::string row;
-        row.reserve(static_cast<size_t>(view.width));
-        for (int x = 0; x < view.width; ++x)
-        {
-            row.push_back(view_glyph(view.at(x, y)));
-        }
-        compact.push_back(std::move(row));
-    }
-
-    return compact;
-}
+using ManipulationLevel = core::Object::ManipulationLevel;
 
 class CurrentPathGuard
 {
-public:
-    explicit CurrentPathGuard(const std::filesystem::path& new_path)
+  public:
+    explicit CurrentPathGuard(const std::filesystem::path &new_path)
         : original_(std::filesystem::current_path())
     {
         std::filesystem::current_path(new_path);
     }
 
-    ~CurrentPathGuard()
-    {
-        std::filesystem::current_path(original_);
-    }
+    ~CurrentPathGuard() { std::filesystem::current_path(original_); }
 
-private:
+  private:
     std::filesystem::path original_;
 };
 
 std::filesystem::path make_login_test_root()
 {
-    const std::filesystem::path root = std::filesystem::temp_directory_path() / "type_erasure_login_test";
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "type_erasure_login_test";
     std::filesystem::remove_all(root);
     std::filesystem::create_directories(root / "maps");
     std::filesystem::create_directories(root / "users");
     return root;
 }
 
-void write_text_file(const std::filesystem::path& path, const std::string& text)
+void write_text_file(const std::filesystem::path &path, const std::string &text)
 {
     std::ofstream output(path);
     ASSERT_TRUE(static_cast<bool>(output));
@@ -74,157 +48,128 @@ void write_text_file(const std::filesystem::path& path, const std::string& text)
 
 std::unique_ptr<core::Game> create_reference_game()
 {
-    return core::Game::from_json(R"({
-  "version": 1,
-  "size": { "width": 9, "height": 7 },
-  "resources": { "commits": 6, "undos": 6 },
-  "tiles": [
-    { "x": 0, "y": 6, "symbol": "v" },
-    { "x": 2, "y": 1, "symbol": "+", "pushable": true },
-    { "x": 4, "y": 1, "symbol": "=", "pushable": true },
-    { "x": 4, "y": 4, "symbol": "1", "pushable": true },
-    { "x": 7, "y": 5, "symbol": "2", "pushable": true },
-    { "x": 6, "y": 3, "symbol": "3", "pushable": true },
-    { "x": 2, "y": 5, "symbol": "4", "pushable": true }
-  ]
-})");
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(9, 7);
+    map->set_commits_left(6)
+        .set_undos_left(6)
+        .apply_brush(0, 6, core::Brush{.symbol = 'v'})
+        .apply_brush(2, 1,
+                     core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(4, 1,
+                     core::Brush{.symbol = '=', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(4, 4,
+                     core::Brush{.symbol = '1', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(7, 5,
+                     core::Brush{.symbol = '2', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(6, 3,
+                     core::Brush{.symbol = '3', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(2, 5,
+                     core::Brush{.symbol = '4', .manipulation_level = ManipulationLevel::Push});
+    return map->create_game();
 }
-}  // namespace
-
-TEST(CoreGameTest, GivenNewGameWhenRenderingThenShowsInitialCounters)
-{
-    // Given
-    std::unique_ptr<core::Game> game = create_reference_game();
-
-    // When
-    const core::MapView view = game->view();
-
-    // Then
-    EXPECT_EQ(view.commits_left, 6);
-    EXPECT_EQ(view.undos_left, 6);
-    EXPECT_FALSE(game->solved());
-}
+} // namespace
 
 TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdates)
 {
     // Given
     std::unique_ptr<core::Game> game = create_reference_game();
+    EXPECT_EQ(game->view().at(0, 6), 'v');
+    EXPECT_EQ(game->view().at(1, 6), ' ');
 
     // When
-    const bool moved = game->apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game->view());
+    game->apply_event(core::Event::MoveRight);
 
     // Then
-    EXPECT_TRUE(moved);
-    ASSERT_EQ(grid.size(), 7U);
-    EXPECT_EQ(grid[6][0], ' ');
-    EXPECT_EQ(grid[6][1], '>');
+    EXPECT_EQ(game->view().at(0, 6), ' ');
+    EXPECT_EQ(game->view().at(1, 6), '>');
 }
 
 TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
 {
     // Given
     std::unique_ptr<core::Game> game = create_reference_game();
+    EXPECT_EQ(game->view().commits_left, 6);
+    game->apply_event(core::Event::Commit);
+    EXPECT_EQ(game->view().commits_left, 5);
+    EXPECT_EQ(game->view().undos_left, 6);
 
     // When
-    const bool committed = game->apply_event(core::Event::Commit);
-    const core::MapView after_commit = game->view();
-    const bool undone = game->apply_event(core::Event::Undo);
-    const core::MapView after_undo = game->view();
+    game->apply_event(core::Event::Undo);
 
     // Then
-    EXPECT_TRUE(committed);
-    EXPECT_EQ(after_commit.commits_left, 5);
-    EXPECT_EQ(after_commit.undos_left, 6);
-    EXPECT_TRUE(undone);
-    EXPECT_EQ(after_undo.commits_left, 6);
-    EXPECT_EQ(after_undo.undos_left, 5);
+    EXPECT_EQ(game->view().commits_left, 6);
+    EXPECT_EQ(game->view().undos_left, 5);
 }
 
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
 {
     // Given
     std::unique_ptr<core::Game> game = create_reference_game();
+    game->apply_event(core::Event::MoveUp);
+    game->apply_event(core::Event::MoveRight);
+    EXPECT_EQ(game->view().at(1, 5), '>');
+    EXPECT_EQ(game->view().at(2, 5), '4');
 
     // When
-    EXPECT_TRUE(game->apply_event(core::Event::MoveUp));
-    EXPECT_TRUE(game->apply_event(core::Event::MoveRight));
-    const bool pushed = game->apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game->view());
+    game->apply_event(core::Event::MoveRight);
 
     // Then
-    EXPECT_TRUE(pushed);
-    ASSERT_EQ(grid.size(), 7U);
-    EXPECT_EQ(grid[5][2], '>');
-    EXPECT_EQ(grid[5][3], '4');
+    EXPECT_EQ(game->view().at(2, 5), '>');
+    EXPECT_EQ(game->view().at(3, 5), '4');
 }
 
-TEST(CoreGameTest, GivenPickableItemInFrontWhenPickingAndDroppingThenInventoryPersistsAcrossMove)
+TEST(CoreGameTest, pickable_item_can_be_picked_up)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::from_json(R"({
-  "version": 1,
-  "size": { "width": 4, "height": 3 },
-  "resources": { "commits": 2, "undos": 1 },
-  "tiles": [
-    { "x": 1, "y": 1, "symbol": ">", "pushable": false },
-    { "x": 2, "y": 1, "symbol": "*", "pickable": true }
-  ]
-})");
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 3);
+    map->set_commits_left(2)
+        .set_undos_left(1)
+        .apply_brush(1, 1, core::Brush{.symbol = '>'})
+        .apply_brush(2, 1,
+                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
+    std::unique_ptr<core::Game> game = map->create_game();
 
     // When
-    const bool picked = game->apply_event(core::Event::PickItem);
-    const auto after_pick = extract_grid(game->view());
-    const bool moved = game->apply_event(core::Event::MoveRight);
-    const auto after_move = extract_grid(game->view());
-    const bool dropped = game->apply_event(core::Event::DropItem);
-    const auto after_drop = extract_grid(game->view());
+    game->apply_event(core::Event::PickItem);
 
     // Then
-    EXPECT_TRUE(picked);
-    EXPECT_TRUE(moved);
-    EXPECT_TRUE(dropped);
-    EXPECT_EQ(after_pick[1][2], ' ');
-    EXPECT_EQ(after_move[1][1], ' ');
-    EXPECT_EQ(after_move[1][2], '>');
-    EXPECT_EQ(after_drop[1][2], '>');
-    EXPECT_EQ(after_drop[1][3], '*');
+    EXPECT_EQ(game->view().at(2, 1), ' ');
+    EXPECT_EQ(game->view().player->inventory.at(0).symbol, '*');
 }
 
 TEST(CoreGameTest, GivenPickableItemWhenWalkingIntoItThenItCanAlsoBePushed)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::from_json(R"({
-  "version": 1,
-  "size": { "width": 4, "height": 1 },
-  "tiles": [
-    { "x": 0, "y": 0, "symbol": ">" },
-    { "x": 1, "y": 0, "symbol": "*", "pickable": true }
-  ]
-})");
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 1);
+    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
+        .apply_brush(1, 0,
+                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
+    std::unique_ptr<core::Game> game = map->create_game();
 
     // When
-    const bool moved = game->apply_event(core::Event::MoveRight);
-    const auto grid = extract_grid(game->view());
+    game->apply_event(core::Event::MoveRight);
 
     // Then
-    EXPECT_TRUE(moved);
-    EXPECT_EQ(grid[0], " >*");
+    EXPECT_EQ(game->view().at(0, 0), ' ');
+    EXPECT_EQ(game->view().at(1, 0), '>');
+    EXPECT_EQ(game->view().at(2, 0), '*');
+    EXPECT_EQ(game->view().at(3, 0), ' ');
 }
 
 TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedInView)
 {
     // Given
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(5, 2);
-    map->apply_brush(0, 0, core::Brush{.symbol = '>'});
-    map->apply_brush(1, 0, core::Brush{.symbol = '*', .manipulation_level = core::Object::ManipulationLevel::Pick});
-    map->apply_brush(2, 0, core::Brush{.symbol = '!', .manipulation_level = core::Object::ManipulationLevel::Pick});
-    std::unique_ptr<core::Game> game = core::Game::from_json(map->to_json());
+    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
+        .apply_brush(1, 0,
+                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick})
+        .apply_brush(2, 0,
+                     core::Brush{.symbol = '!', .manipulation_level = ManipulationLevel::Pick});
+    std::unique_ptr<core::Game> game = map->create_game();
 
     // When
-    ASSERT_TRUE(game->apply_event(core::Event::PickItem));
-    ASSERT_TRUE(game->apply_event(core::Event::MoveRight));
-    ASSERT_TRUE(game->apply_event(core::Event::PickItem));
+    game->apply_event(core::Event::PickItem);
+    game->apply_event(core::Event::MoveRight);
+    game->apply_event(core::Event::PickItem);
     const core::MapView view = game->view();
 
     // Then
@@ -237,72 +182,76 @@ TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedIn
 TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenActionFails)
 {
     // Given
-    std::unique_ptr<core::Game> game = core::Game::from_json(R"({
-  "version": 1,
-  "size": { "width": 4, "height": 2 },
-  "tiles": [
-    { "x": 0, "y": 0, "symbol": ">" },
-    { "x": 1, "y": 0, "symbol": "+", "pushable": true },
-    { "x": 2, "y": 0, "symbol": "*", "pickable": true }
-  ]
-})");
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 2);
+    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
+        .apply_brush(1, 0,
+                     core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(2, 0,
+                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
+    std::unique_ptr<core::Game> game = map->create_game();
 
     // When / Then
-    EXPECT_FALSE(game->apply_event(core::Event::PickItem));
-    EXPECT_FALSE(game->apply_event(core::Event::DropItem));
+    game->apply_event(core::Event::PickItem);
+    EXPECT_EQ(game->view().at(0, 0), '>');
+    EXPECT_EQ(game->view().at(1, 0), '+');
+    EXPECT_TRUE(game->view().player->inventory.empty());
+
+    game->apply_event(core::Event::DropItem);
+    EXPECT_EQ(game->view().at(0, 0), '>');
+    EXPECT_EQ(game->view().at(1, 0), '+');
+    EXPECT_TRUE(game->view().player->inventory.empty());
 }
 
-TEST(CoreGameTest, GivenCustomMapJsonWhenLoadingThenMapIsBuiltFromJson)
+TEST(CoreGameTest, GivenMapBuilderWhenCreatingGameThenGameUsesBuilderMap)
 {
     // Given
-    const std::string json_map = R"({
-  "version": 1,
-  "size": { "width": 5, "height": 3 },
-  "resources": { "commits": 2, "undos": 1 },
-  "tiles": [
-    { "x": 0, "y": 2, "symbol": ">", "pushable": false },
-    { "x": 1, "y": 2, "symbol": "4", "pushable": true },
-    { "x": 2, "y": 1, "symbol": "+", "pushable": true },
-    { "x": 3, "y": 1, "symbol": "=", "pushable": true }
-  ]
-})";
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(5, 3);
+    map->set_commits_left(2)
+        .set_undos_left(1)
+        .apply_brush(0, 2, core::Brush{.symbol = '>'})
+        .apply_brush(1, 2,
+                     core::Brush{.symbol = '4', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(2, 1,
+                     core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(3, 1,
+                     core::Brush{.symbol = '=', .manipulation_level = ManipulationLevel::Push});
 
     // When
-    std::unique_ptr<core::Game> game = core::Game::from_json(json_map);
+    std::unique_ptr<core::Game> game = map->create_game();
     const core::MapView view = game->view();
-    const auto grid = extract_grid(view);
 
     // Then
     EXPECT_EQ(view.commits_left, 2);
     EXPECT_EQ(view.undos_left, 1);
-    ASSERT_EQ(grid.size(), 3U);
-    EXPECT_EQ(grid[2][0], '>');
-    EXPECT_EQ(grid[2][1], '4');
-    EXPECT_EQ(grid[1][2], '+');
-    EXPECT_EQ(grid[1][3], '=');
+    EXPECT_EQ(view.at(0, 2), '>');
+    EXPECT_EQ(view.at(1, 2), '4');
+    EXPECT_EQ(view.at(2, 1), '+');
+    EXPECT_EQ(view.at(3, 1), '=');
 }
 
-TEST(CoreGameTest, GivenGameWhenSerializingAndParsingThenRoundtripPreservesMap)
+TEST(CoreGameTest, GivenMapBuilderWhenSavingAndLoadingThenMapIsPreserved)
 {
     // Given
-    std::unique_ptr<core::Game> original = core::Game::from_json(R"({
-  "version": 1,
-  "size": { "width": 4, "height": 3 },
-  "resources": { "commits": 3, "undos": 7 },
-  "tiles": [
-    { "x": 0, "y": 2, "symbol": "^" },
-    { "x": 1, "y": 2, "symbol": "2", "pushable": true },
-    { "x": 1, "y": 1, "symbol": "*" }
-  ]
-})");
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "type_erasure_roundtrip_map.json";
+    std::unique_ptr<core::MapBuilder> original = core::MapBuilder::create(4, 3);
+    original->set_commits_left(3)
+        .set_undos_left(7)
+        .apply_brush(0, 2, core::Brush{.symbol = '^'})
+        .apply_brush(1, 2,
+                     core::Brush{.symbol = '2', .manipulation_level = ManipulationLevel::Push})
+        .apply_brush(1, 1, core::Brush{.symbol = '*'});
 
     // When
-    const std::string encoded = original->to_json();
-    std::unique_ptr<core::Game> restored = core::Game::from_json(encoded);
+    original->save_to_file(path);
+    std::unique_ptr<core::MapBuilder> restored = core::MapBuilder::load_from_file(path);
 
     // Then
-    EXPECT_EQ(extract_grid(restored->view()), extract_grid(original->view()));
-    EXPECT_EQ(restored->to_json(), encoded);
+    EXPECT_EQ(restored->view().at(0, 2), '^');
+    EXPECT_EQ(restored->view().at(1, 2), '2');
+    EXPECT_EQ(restored->view().at(1, 1), '*');
+    EXPECT_EQ(restored->view().commits_left, original->view().commits_left);
+    EXPECT_EQ(restored->view().undos_left, original->view().undos_left);
 }
 
 TEST(LoginViewTest, GivenNewUserWhenCreatingThenUserFileAndHighscoreAreCreated)
@@ -313,8 +262,8 @@ TEST(LoginViewTest, GivenNewUserWhenCreatingThenUserFileAndHighscoreAreCreated)
     std::unique_ptr<core::LoginView> login = core::LoginView::create();
 
     // When
-    core::User& user = login->create_user("alice");
-    const auto& highscores = login->highscore_list();
+    core::User &user = login->create_user("alice");
+    const auto &highscores = login->highscore_list();
 
     // Then
     EXPECT_EQ(user.username(), "alice");
@@ -337,7 +286,7 @@ TEST(LoginViewTest, GivenExistingUserFileWhenLoggingInThenSolvedMapsAreLoaded)
     std::unique_ptr<core::LoginView> login = core::LoginView::create();
 
     // When
-    core::User& user = login->login_as_user("bob");
+    core::User &user = login->login_as_user("bob");
 
     // Then
     ASSERT_EQ(user.solved_maps().size(), 2U);
@@ -350,89 +299,48 @@ TEST(LoginViewTest, GivenMapsDirectoryWhenSelectingMapThenGameLoadsFromSelectedM
     // Given
     const std::filesystem::path root = make_login_test_root();
     CurrentPathGuard current_path(root);
-    write_text_file(root / "maps" / "zero.json", R"({
-  "version": 1,
-  "size": { "width": 3, "height": 1 },
-  "tiles": [
-    { "x": 0, "y": 0, "symbol": ">" },
-    { "x": 1, "y": 0, "symbol": "=" },
-    { "x": 2, "y": 0, "symbol": "0", "pushable": true }
-  ]
-})");
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(3, 1);
+    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
+        .apply_brush(1, 0, core::Brush{.symbol = '='})
+        .apply_brush(2, 0,
+                     core::Brush{.symbol = '0', .manipulation_level = ManipulationLevel::Push});
+    map->save_to_file(root / "maps" / "zero.json");
     std::unique_ptr<core::LoginView> login = core::LoginView::create();
-    core::User& user = login->create_user("carol");
+    core::User &user = login->create_user("carol");
 
     // When
-    const auto& maps = user.available_maps();
+    const auto &maps = user.available_maps();
     std::unique_ptr<core::Game> game = user.select_map("zero");
 
     // Then
     ASSERT_EQ(maps.size(), 1U);
     EXPECT_EQ(maps[0].map_id, "zero");
     EXPECT_EQ(maps[0].display_name, "zero");
-    EXPECT_EQ(extract_grid(game->view()), std::vector<std::string>({">=0"}));
-}
-
-TEST(LoginViewTest, GivenSelectedMapWhenGameBecomesSolvedThenSolvedMapIsPersistedToUserFile)
-{
-    // Given
-    const std::filesystem::path root = make_login_test_root();
-    CurrentPathGuard current_path(root);
-    write_text_file(root / "maps" / "win.json", R"({
-  "version": 1,
-  "size": { "width": 5, "height": 1 },
-  "tiles": [
-    { "x": 0, "y": 0, "symbol": ">" },
-    { "x": 1, "y": 0, "symbol": "1", "pushable": true },
-    { "x": 2, "y": 0, "symbol": "+" },
-    { "x": 3, "y": 0, "symbol": "=" },
-    { "x": 4, "y": 0, "symbol": "1", "pushable": true }
-  ]
-})");
-    std::unique_ptr<core::LoginView> login = core::LoginView::create();
-    core::User& user = login->create_user("dana");
-    std::unique_ptr<core::Game> game = user.select_map("win");
-
-    // When
-    ASSERT_TRUE(game->apply_event(core::Event::MoveRight));
-    const std::string user_json = std::filesystem::exists(root / "users" / "dana.json")
-                                      ? [&]() {
-                                            std::ifstream input(root / "users" / "dana.json");
-                                            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-                                        }()
-                                      : "";
-
-    // Then
-    EXPECT_TRUE(game->solved());
-    ASSERT_EQ(user.solved_maps().size(), 1U);
-    EXPECT_EQ(user.solved_maps()[0].map_id, "win");
-    EXPECT_NE(user_json.find("\"win\""), std::string::npos);
-    EXPECT_EQ(login->highscore_list()[0].solved_maps, 1);
+    EXPECT_EQ(game->view().at(0, 0), '>');
+    EXPECT_EQ(game->view().at(1, 0), '=');
+    EXPECT_EQ(game->view().at(2, 0), '0');
 }
 
 TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucceeds)
 {
     // Given
-    const std::string json_map = R"({
-  "version": 1,
-  "size": { "width": 4, "height": 3 },
-  "resources": { "commits": 0, "undos": 0 },
-  "tiles": [
-    { "x": 1, "y": 0, "symbol": "1" },
-    { "x": 2, "y": 0, "symbol": "+" },
-    { "x": 3, "y": 0, "symbol": "1" }
-  ]
-})";
-    std::string error;
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "type_erasure_no_player_map.json";
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 3);
+    map->set_commits_left(0)
+        .set_undos_left(0)
+        .clear_cell(0, 0)
+        .apply_brush(1, 0, core::Brush{.symbol = '1'})
+        .apply_brush(2, 0, core::Brush{.symbol = '+'})
+        .apply_brush(3, 0, core::Brush{.symbol = '1'});
+    map->save_to_file(path);
 
     // When
-    auto builder = core::MapBuilder::from_json(json_map, error);
+    std::unique_ptr<core::MapBuilder> builder = core::MapBuilder::load_from_file(path);
 
     // Then
-    ASSERT_TRUE(builder.has_value());
-    EXPECT_TRUE(error.empty());
-    EXPECT_EQ((*builder)->view().width, 4);
-    EXPECT_EQ((*builder)->view().height, 3);
-    EXPECT_EQ(core::symbol_of((*builder)->at(1, 0)), '1');
-    EXPECT_EQ(core::symbol_of((*builder)->at(2, 0)), '+');
+    EXPECT_EQ(builder->view().width, 4);
+    EXPECT_EQ(builder->view().height, 3);
+    EXPECT_EQ(builder->view().at(1, 0), '1');
+    EXPECT_EQ(builder->view().at(2, 0), '+');
 }

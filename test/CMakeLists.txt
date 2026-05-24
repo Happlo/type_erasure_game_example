@@ -8,6 +8,7 @@ add_executable(core_tests
 
 target_include_directories(core_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/core/src
+    ${CMAKE_SOURCE_DIR}/core/include
 )
 
 target_link_libraries(core_tests PRIVATE
