@@ -33,8 +33,10 @@ class MapBuilder
     virtual std::unique_ptr<Game> create_game() const = 0;
     virtual void save_to_file(const std::filesystem::path &path) const = 0;
 
-    static std::unique_ptr<MapBuilder> create_default();
-    static std::unique_ptr<MapBuilder> create(int width, int height);
+    static std::unique_ptr<MapBuilder> create_default(
+        const std::filesystem::path &save_directory = {});
+    static std::unique_ptr<MapBuilder> create(
+        int width, int height, const std::filesystem::path &save_directory = {});
     static std::unique_ptr<MapBuilder> load_from_file(const std::filesystem::path &path);
     static const std::vector<char> &solver_operators();
     static const std::vector<char> &equation_delimiters();

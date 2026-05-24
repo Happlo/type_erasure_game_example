@@ -1,3 +1,4 @@
+#include "builder_editor.hpp"
 #include "core/game.hpp"
 #include "core/login.hpp"
 #include "shared.hpp"
@@ -35,12 +36,14 @@ struct AppState
     std::unique_ptr<core::LoginView> login{core::LoginView::create()};
     core::User *current_user{nullptr};
     GamePlayState play;
+    gui::BuilderEditorState builder;
     std::array<char, 128> username_input{};
 };
 
 void return_to_login(AppState &app)
 {
     gui::clear_game(app.play, "Choose a map to start a game.");
+    gui::clear_builder_editor(app.builder);
 }
 
 void start_selected_map(AppState &app, const std::string &map_id)
@@ -56,6 +59,23 @@ void start_selected_map(AppState &app, const std::string &map_id)
     catch (const std::exception &ex)
     {
         app.play.status = std::string("Failed to start map: ") + ex.what();
+    }
+}
+
+void create_new_map(AppState &app)
+{
+    if (app.current_user == nullptr)
+        return;
+
+    try
+    {
+        gui::clear_game(app.play, "Choose a map to start a game.");
+        gui::start_builder_editor(app.builder, app.current_user->create_new_map(), "new_map.json",
+                                  "Editing new map.");
+    }
+    catch (const std::exception &ex)
+    {
+        app.play.status = std::string("Create map failed: ") + ex.what();
     }
 }
 
@@ -87,7 +107,10 @@ void create_new_user(AppState &app)
 
 void handle_keyboard(AppState &app)
 {
-    gui::handle_game_keyboard(app.play);
+    if (gui::builder_editor_active(app.builder))
+        gui::handle_builder_editor_keyboard(app.builder);
+    else
+        gui::handle_game_keyboard(app.play);
     if (ImGui::IsKeyPressed(ImGuiKey_R, false))
         return_to_login(app);
 }
@@ -199,6 +222,12 @@ void draw_login_window(AppState &app)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextUnformatted("Available Maps");
+    if (app.current_user != nullptr)
+    {
+        if (ImGui::Button("Create Map", ImVec2(220.0f, 38.0f)))
+            create_new_map(app);
+        ImGui::Spacing();
+    }
     draw_map_buttons(app);
 
     ImGui::Spacing();
@@ -251,7 +280,16 @@ void draw_frame(GLFWwindow *window, AppState &app)
     ImGui::NewFrame();
 
     handle_keyboard(app);
-    if (app.play.game)
+    if (gui::builder_editor_active(app.builder))
+    {
+        if (gui::draw_builder_editor(app.builder, true))
+        {
+            gui::clear_builder_editor(app.builder);
+            if (app.current_user != nullptr)
+                (void)app.current_user->available_maps();
+        }
+    }
+    else if (app.play.game)
     {
         const core::MapView view = app.play.game->view();
         draw_control_window(app, view);

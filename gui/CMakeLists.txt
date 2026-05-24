@@ -4,11 +4,13 @@ find_package(OpenGL REQUIRED)
 
 add_executable(game_gui
     main_game.cpp
+    builder_editor.cpp
     shared.cpp
 )
 
 add_executable(map_builder
     main_builder.cpp
+    builder_editor.cpp
     shared.cpp
 )
 

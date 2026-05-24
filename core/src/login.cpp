@@ -33,6 +33,11 @@ fs::path users_directory() { return fs::path(kUsersDirectory); }
 
 fs::path maps_directory() { return fs::path(kMapsDirectory); }
 
+fs::path user_maps_directory(const std::string &username)
+{
+    return maps_directory() / username;
+}
+
 std::string read_text_file(const fs::path &path)
 {
     std::ifstream input(path);
@@ -59,6 +64,12 @@ MapEntry make_map_entry(const fs::directory_entry &entry)
     return MapEntry{map_id, map_id};
 }
 
+MapEntry make_user_map_entry(const std::string &username, const fs::directory_entry &entry)
+{
+    const std::string display_name = entry.path().stem().string();
+    return MapEntry{username + "/" + display_name, display_name};
+}
+
 bool is_json_file(const fs::directory_entry &entry)
 {
     return entry.is_regular_file() && entry.path().extension() == ".json";
@@ -70,17 +81,36 @@ bool contains_map_id(const std::vector<MapEntry> &maps, const std::string &map_i
                        [&](const MapEntry &entry) { return entry.map_id == map_id; });
 }
 
-std::vector<MapEntry> load_available_maps()
+void append_json_maps_from_directory(std::vector<MapEntry> &maps, const fs::path &directory)
 {
-    std::vector<MapEntry> maps;
-    if (!fs::exists(maps_directory()))
-        return maps;
+    if (!fs::exists(directory))
+        return;
 
-    for (const fs::directory_entry &entry : fs::directory_iterator(maps_directory()))
+    for (const fs::directory_entry &entry : fs::directory_iterator(directory))
     {
         if (is_json_file(entry))
             maps.push_back(make_map_entry(entry));
     }
+}
+
+void append_user_maps_from_directory(std::vector<MapEntry> &maps, const std::string &username)
+{
+    const fs::path directory = user_maps_directory(username);
+    if (!fs::exists(directory))
+        return;
+
+    for (const fs::directory_entry &entry : fs::directory_iterator(directory))
+    {
+        if (is_json_file(entry))
+            maps.push_back(make_user_map_entry(username, entry));
+    }
+}
+
+std::vector<MapEntry> load_available_maps(const std::string &username)
+{
+    std::vector<MapEntry> maps;
+    append_json_maps_from_directory(maps, maps_directory());
+    append_user_maps_from_directory(maps, username);
 
     std::sort(maps.begin(), maps.end(), [](const MapEntry &lhs, const MapEntry &rhs) {
         return lhs.display_name < rhs.display_name;
@@ -172,7 +202,7 @@ class DefaultUser final : public User
     explicit DefaultUser(std::string username)
         : username_(std::move(username)),
           solved_maps_(parse_solved_maps(read_json_file(user_path(username_)))),
-          available_maps_(load_available_maps())
+          available_maps_(load_available_maps(username_))
     {
     }
 
@@ -180,15 +210,25 @@ class DefaultUser final : public User
 
     const std::vector<MapEntry> &solved_maps() const override { return solved_maps_; }
 
-    const std::vector<MapEntry> &available_maps() const override { return available_maps_; }
+    const std::vector<MapEntry> &available_maps() const override
+    {
+        available_maps_ = load_available_maps(username_);
+        return available_maps_;
+    }
 
     std::unique_ptr<Game> select_map(const std::string &map_id) override
     {
+        available_maps_ = load_available_maps(username_);
         if (!contains_map_id(available_maps_, map_id))
             throw std::runtime_error("Unknown map: " + map_id);
         return std::make_unique<UserGame>(
             username_, map_id, solved_maps_,
             Game::load_from_file(maps_directory() / (map_id + ".json")));
+    }
+
+    std::unique_ptr<MapBuilder> create_new_map() const override
+    {
+        return MapBuilder::create_default(user_maps_directory(username_));
     }
 
   private:
@@ -234,7 +274,7 @@ class DefaultUser final : public User
 
     std::string username_;
     std::vector<MapEntry> solved_maps_;
-    std::vector<MapEntry> available_maps_;
+    mutable std::vector<MapEntry> available_maps_;
 };
 
 class DefaultLoginView final : public LoginView

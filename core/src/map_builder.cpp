@@ -7,6 +7,7 @@
 #include "player.hpp"
 #include "solution_rules.hpp"
 
+#include <filesystem>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -55,12 +56,39 @@ internal::Map make_empty_map(const int width, const int height)
     return map;
 }
 
+std::filesystem::path resolve_save_path(const std::filesystem::path &save_directory,
+                                        const std::filesystem::path &requested_path)
+{
+    if (save_directory.empty())
+        return requested_path;
+
+    std::filesystem::path filename = requested_path.filename();
+    if (filename.empty() || filename == "." || filename == "..")
+        throw std::runtime_error("Map filename must not be empty");
+    if (!filename.has_extension())
+        filename += ".json";
+
+    std::error_code error;
+    std::filesystem::create_directories(save_directory, error);
+    if (error)
+        throw std::runtime_error("Failed to create map directory: " + error.message());
+
+    return save_directory / filename;
+}
+
 class DefaultMapBuilder final : public MapBuilder
 {
   public:
-    DefaultMapBuilder() : map_(make_empty_map(kDefaultMapWidth, kDefaultMapHeight)) {}
+    explicit DefaultMapBuilder(std::filesystem::path save_directory = {})
+        : map_(make_empty_map(kDefaultMapWidth, kDefaultMapHeight)),
+          save_directory_(std::move(save_directory))
+    {
+    }
 
-    explicit DefaultMapBuilder(internal::Map map) : map_(std::move(map)) {}
+    explicit DefaultMapBuilder(internal::Map map, std::filesystem::path save_directory = {})
+        : map_(std::move(map)), save_directory_(std::move(save_directory))
+    {
+    }
 
     const MapView &view() const override
     {
@@ -136,7 +164,7 @@ class DefaultMapBuilder final : public MapBuilder
 
     void save_to_file(const std::filesystem::path &path) const override
     {
-        map_io::map_to_file(map_, path);
+        map_io::map_to_file(map_, resolve_save_path(save_directory_, path));
     }
 
   private:
@@ -159,17 +187,19 @@ class DefaultMapBuilder final : public MapBuilder
 
     mutable MapView view_;
     internal::Map map_;
+    std::filesystem::path save_directory_;
 };
 } // namespace
 
-std::unique_ptr<MapBuilder> MapBuilder::create_default()
+std::unique_ptr<MapBuilder> MapBuilder::create_default(const std::filesystem::path &save_directory)
 {
-    return std::make_unique<DefaultMapBuilder>();
+    return std::make_unique<DefaultMapBuilder>(save_directory);
 }
 
-std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height)
+std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height,
+                                               const std::filesystem::path &save_directory)
 {
-    return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height));
+    return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height), save_directory);
 }
 
 std::unique_ptr<MapBuilder> MapBuilder::load_from_file(const std::filesystem::path &path)
