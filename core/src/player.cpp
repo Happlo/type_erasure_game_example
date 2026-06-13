@@ -42,37 +42,20 @@ char glyph(const Facing facing)
 
 char glyph(const PlayerState &player) { return glyph(player.facing); }
 
-core::CellView view(const PlayerState &value)
+std::optional<Location> find_player(const Map &map)
 {
-    core::Player player = value.player;
-    player.symbol = glyph(value.facing);
-    return player;
-}
-
-std::optional<Point> find_player(const Map &map)
-{
-    for (int y = 0; y < grid_height(map); ++y)
-    {
-        for (int x = 0; x < grid_width(map); ++x)
-        {
-            if (map.grid[y][x].is<PlayerState>())
-                return Point{x, y};
-        }
-    }
-    return std::nullopt;
+    if (!map.player.has_value())
+        return std::nullopt;
+    return Location{.x = map.player->player.location.x, .y = map.player->player.location.y};
 }
 
 std::optional<core::Player> get_public_player(const Map &map)
 {
-    const std::optional<Point> player_position = find_player(map);
-    if (!player_position.has_value())
+    if (!map.player.has_value())
         return std::nullopt;
 
-    const PlayerState player_state =
-        map.grid[static_cast<size_t>(player_position->y)][static_cast<size_t>(player_position->x)]
-            .get<PlayerState>();
-    core::Player player = player_state.player;
-    player.symbol = glyph(player_state.facing);
+    core::Player player = map.player->player;
+    player.symbol = glyph(map.player->facing);
     return player;
 }
 } // namespace core::internal

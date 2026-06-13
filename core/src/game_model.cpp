@@ -13,9 +13,10 @@ int grid_width(const Map &map)
     return static_cast<int>(map.grid[0].size());
 }
 
-bool in_bounds(const Map &map, const Point &point)
+bool in_bounds(const Map &map, const Location &location)
 {
-    return point.x >= 0 && point.y >= 0 && point.x < grid_width(map) && point.y < grid_height(map);
+    return location.x >= 0 && location.y >= 0 && location.x < grid_width(map) &&
+           location.y < grid_height(map);
 }
 
 void commit(History &history)

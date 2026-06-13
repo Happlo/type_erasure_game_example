@@ -9,6 +9,13 @@
 #include <memory>
 #include <string>
 
+namespace core
+{
+bool operator==(const CellView &cell, const char symbol) { return symbol_of(cell) == symbol; }
+
+bool operator==(const char symbol, const CellView &cell) { return cell == symbol; }
+} // namespace core
+
 namespace
 {
 using ManipulationLevel = core::Object::ManipulationLevel;
@@ -72,7 +79,10 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
 {
     // Given
     std::unique_ptr<core::Game> game = create_reference_game();
-    EXPECT_EQ(game->view().at(0, 6), 'v');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 6}));
+    EXPECT_EQ(game->view().player->symbol, 'v');
+    EXPECT_EQ(game->view().at(0, 6), ' ');
     EXPECT_EQ(game->view().at(1, 6), ' ');
 
     // When
@@ -80,7 +90,10 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
 
     // Then
     EXPECT_EQ(game->view().at(0, 6), ' ');
-    EXPECT_EQ(game->view().at(1, 6), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 1, .y = 6}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(1, 6), ' ');
 }
 
 TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
@@ -106,14 +119,19 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     std::unique_ptr<core::Game> game = create_reference_game();
     game->apply_event(core::Event::MoveUp);
     game->apply_event(core::Event::MoveRight);
-    EXPECT_EQ(game->view().at(1, 5), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 1, .y = 5}));
+    EXPECT_EQ(game->view().player->symbol, '>');
     EXPECT_EQ(game->view().at(2, 5), '4');
 
     // When
     game->apply_event(core::Event::MoveRight);
 
     // Then
-    EXPECT_EQ(game->view().at(2, 5), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 2, .y = 5}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(2, 5), ' ');
     EXPECT_EQ(game->view().at(3, 5), '4');
 }
 
@@ -150,7 +168,10 @@ TEST(CoreGameTest, GivenPickableItemWhenWalkingIntoItThenItCanAlsoBePushed)
 
     // Then
     EXPECT_EQ(game->view().at(0, 0), ' ');
-    EXPECT_EQ(game->view().at(1, 0), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 1, .y = 0}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(1, 0), ' ');
     EXPECT_EQ(game->view().at(2, 0), '*');
     EXPECT_EQ(game->view().at(3, 0), ' ');
 }
@@ -192,12 +213,18 @@ TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenAc
 
     // When / Then
     game->apply_event(core::Event::PickItem);
-    EXPECT_EQ(game->view().at(0, 0), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(0, 0), ' ');
     EXPECT_EQ(game->view().at(1, 0), '+');
     EXPECT_TRUE(game->view().player->inventory.empty());
 
     game->apply_event(core::Event::DropItem);
-    EXPECT_EQ(game->view().at(0, 0), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(0, 0), ' ');
     EXPECT_EQ(game->view().at(1, 0), '+');
     EXPECT_TRUE(game->view().player->inventory.empty());
 }
@@ -223,7 +250,10 @@ TEST(CoreGameTest, GivenMapBuilderWhenCreatingGameThenGameUsesBuilderMap)
     // Then
     EXPECT_EQ(view.commits_left, 2);
     EXPECT_EQ(view.undos_left, 1);
-    EXPECT_EQ(view.at(0, 2), '>');
+    ASSERT_TRUE(view.player.has_value());
+    EXPECT_EQ(view.player->location, (core::Location{.x = 0, .y = 2}));
+    EXPECT_EQ(view.player->symbol, '>');
+    EXPECT_EQ(view.at(0, 2), ' ');
     EXPECT_EQ(view.at(1, 2), '4');
     EXPECT_EQ(view.at(2, 1), '+');
     EXPECT_EQ(view.at(3, 1), '=');
@@ -247,7 +277,10 @@ TEST(CoreGameTest, GivenMapBuilderWhenSavingAndLoadingThenMapIsPreserved)
     std::unique_ptr<core::MapBuilder> restored = core::MapBuilder::load_from_file(path);
 
     // Then
-    EXPECT_EQ(restored->view().at(0, 2), '^');
+    ASSERT_TRUE(restored->view().player.has_value());
+    EXPECT_EQ(restored->view().player->location, (core::Location{.x = 0, .y = 2}));
+    EXPECT_EQ(restored->view().player->symbol, '^');
+    EXPECT_EQ(restored->view().at(0, 2), ' ');
     EXPECT_EQ(restored->view().at(1, 2), '2');
     EXPECT_EQ(restored->view().at(1, 1), '*');
     EXPECT_EQ(restored->view().commits_left, original->view().commits_left);
@@ -316,7 +349,41 @@ TEST(LoginViewTest, GivenMapsDirectoryWhenSelectingMapThenGameLoadsFromSelectedM
     ASSERT_EQ(maps.size(), 1U);
     EXPECT_EQ(maps[0].map_id, "zero");
     EXPECT_EQ(maps[0].display_name, "zero");
-    EXPECT_EQ(game->view().at(0, 0), '>');
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(0, 0), ' ');
+    EXPECT_EQ(game->view().at(1, 0), '=');
+    EXPECT_EQ(game->view().at(2, 0), '0');
+}
+
+TEST(LoginViewTest, GivenUserCreatesAndSavesMapThenMapIsStoredUnderUserDirectory)
+{
+    // Given
+    const std::filesystem::path root = make_login_test_root();
+    CurrentPathGuard current_path(root);
+    std::unique_ptr<core::LoginView> login = core::LoginView::create();
+    core::User &user = login->create_user("eve");
+    std::unique_ptr<core::MapBuilder> map = user.create_new_map();
+    map->resize(3, 1)
+        .apply_brush(0, 0, core::Brush{.symbol = '>'})
+        .apply_brush(1, 0, core::Brush{.symbol = '='})
+        .apply_brush(2, 0,
+                     core::Brush{.symbol = '0', .manipulation_level = ManipulationLevel::Push});
+
+    // When
+    map->save_to_file("custom.json");
+    std::unique_ptr<core::Game> game = user.select_map("eve/custom");
+
+    // Then
+    ASSERT_EQ(user.available_maps().size(), 1U);
+    EXPECT_EQ(user.available_maps()[0].map_id, "eve/custom");
+    EXPECT_EQ(user.available_maps()[0].display_name, "custom");
+    EXPECT_TRUE(std::filesystem::exists(root / "maps" / "eve" / "custom.json"));
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
+    EXPECT_EQ(game->view().player->symbol, '>');
+    EXPECT_EQ(game->view().at(0, 0), ' ');
     EXPECT_EQ(game->view().at(1, 0), '=');
     EXPECT_EQ(game->view().at(2, 0), '0');
 }

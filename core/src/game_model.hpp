@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/location.hpp"
 #include "core/map.hpp"
 
 #include <cassert>
@@ -20,14 +21,22 @@ CellView view(const Object &value);
 
 namespace core::internal
 {
-struct Point
+
+enum class Facing
 {
-    int x{};
-    int y{};
+    North,
+    South,
+    West,
+    East
 };
 
-struct PlayerState;
-core::CellView view(const PlayerState &value);
+struct PlayerState
+{
+    core::Player player{};
+    Facing facing{Facing::South};
+
+    static PlayerState from_delta(int dx, int dy, core::Player player = {});
+};
 
 template <typename T> core::CellView adl_view(const T &value) { return view(value); }
 
@@ -83,6 +92,7 @@ struct Map
 {
     int commits_left{0};
     int undos_left{0};
+    std::optional<PlayerState> player;
     std::vector<std::vector<TypeErasedObject>> grid;
 };
 
@@ -92,7 +102,7 @@ int grid_height(const Map &map);
 
 int grid_width(const Map &map);
 
-bool in_bounds(const Map &map, const Point &point);
+bool in_bounds(const Map &map, const Location &Location);
 
 void commit(History &history);
 

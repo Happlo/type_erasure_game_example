@@ -30,6 +30,28 @@ internal::Facing player_facing_from_symbol(const char symbol)
     throw std::runtime_error("Invalid player symbol; expected one of '^', 'v', '<', '>'");
 }
 
+bool is_player_symbol(const char symbol)
+{
+    return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
+}
+
+bool tile_is_player(const json &tile)
+{
+    const std::string symbol_text = tile.at("symbol").get<std::string>();
+    return symbol_text == "Player" || (symbol_text.size() == 1 && is_player_symbol(symbol_text[0]));
+}
+
+internal::PlayerState player_from_tile(const json &tile)
+{
+    const std::string symbol_text = tile.at("symbol").get<std::string>();
+    const internal::Facing facing =
+        symbol_text == "Player" ? internal::Facing::South : player_facing_from_symbol(symbol_text[0]);
+    return internal::PlayerState{
+        .player = core::Player{.location = core::Location{.x = tile.at("x").get<int>(),
+                                                          .y = tile.at("y").get<int>()}},
+        .facing = facing};
+}
+
 internal::TypeErasedObject object_from_tile(const json &tile)
 {
     const bool pushable = tile.value("pushable", false);
@@ -40,16 +62,10 @@ internal::TypeErasedObject object_from_tile(const json &tile)
                  : (pushable ? core::Object::ManipulationLevel::Push
                              : core::Object::ManipulationLevel::None);
 
-    if (symbol_text == "Player")
-        return internal::TypeErasedObject(internal::PlayerState{});
     if (symbol_text.size() != 1)
         throw std::runtime_error("symbol must be one character or 'Player'");
 
     const char symbol = symbol_text[0];
-    if (symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>')
-    {
-        return internal::TypeErasedObject(internal::PlayerState{.facing = player_facing_from_symbol(symbol)});
-    }
     return internal::MakeObject(symbol).with_manipulation_level(manipulation_level);
 }
 
@@ -66,6 +82,13 @@ json tile_from_object(const internal::TypeErasedObject &object, int x, int y)
             tile["pickable"] = true;
     }
     return tile;
+}
+
+json tile_from_player(const internal::PlayerState &player)
+{
+    return json{{"x", player.player.location.x},
+                {"y", player.player.location.y},
+                {"symbol", std::string(1, internal::glyph(player))}};
 }
 } // namespace
 
@@ -107,10 +130,19 @@ internal::Map map_from_json(std::string_view json_text, const bool require_playe
         if (occupied.count(key) != 0)
             throw std::runtime_error("Multiple tiles at the same position");
         occupied.insert(key);
+
+        if (tile_is_player(tile))
+        {
+            if (map.player.has_value())
+                throw std::runtime_error("Multiple player positions found");
+            map.player = player_from_tile(tile);
+            continue;
+        }
+
         map.grid[y][x] = object_from_tile(tile);
     }
 
-    if (require_player && !internal::find_player(map).has_value())
+    if (require_player && !map.player.has_value())
     {
         throw std::runtime_error("Player position not found");
     }
@@ -125,6 +157,9 @@ std::string map_to_json(const internal::Map &map)
     root["resources"] = {{"commits", map.commits_left}, {"undos", map.undos_left}};
 
     json tiles = json::array();
+    if (map.player.has_value())
+        tiles.push_back(tile_from_player(*map.player));
+
     for (int y = 0; y < internal::grid_height(map); ++y)
     {
         for (int x = 0; x < internal::grid_width(map); ++x)

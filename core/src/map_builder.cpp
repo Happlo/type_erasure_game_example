@@ -8,6 +8,7 @@
 #include "solution_rules.hpp"
 
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -51,8 +52,9 @@ internal::Map make_empty_map(const int width, const int height)
     internal::Map map;
     map.grid.assign(static_cast<size_t>(height),
                     std::vector<internal::TypeErasedObject>(static_cast<size_t>(width), Empty{}));
-    map.grid[0][0] =
-        internal::TypeErasedObject(internal::PlayerState{.facing = internal::Facing::South});
+    map.player =
+        internal::PlayerState{.player = core::Player{.location = core::Location{.x = 0, .y = 0}},
+                              .facing = internal::Facing::South};
     return map;
 }
 
@@ -123,6 +125,10 @@ class DefaultMapBuilder final : public MapBuilder
         }
 
         map_.grid = std::move(next);
+        if (map_.player.has_value() &&
+            !internal::in_bounds(map_, Location{.x = map_.player->player.location.x,
+                                                .y = map_.player->player.location.y}))
+            map_.player = std::nullopt;
         return *this;
     }
 
@@ -130,11 +136,17 @@ class DefaultMapBuilder final : public MapBuilder
     {
         if (is_player_symbol(brush.symbol))
         {
-            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = internal::TypeErasedObject(
-                internal::PlayerState{.facing = player_facing_from_symbol(brush.symbol)});
-            ensure_single_player(x, y);
+            map_.player = internal::PlayerState{
+                .player = core::Player{.location = core::Location{.x = x, .y = y}},
+                .facing = player_facing_from_symbol(brush.symbol)};
+            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
+                internal::TypeErasedObject(Empty{});
             return *this;
         }
+
+        if (map_.player.has_value() &&
+            map_.player->player.location == core::Location{.x = x, .y = y})
+            map_.player = std::nullopt;
 
         if ('0' <= brush.symbol && brush.symbol <= '9')
         {
@@ -151,7 +163,11 @@ class DefaultMapBuilder final : public MapBuilder
 
     MapBuilder &clear_cell(const int x, const int y) override
     {
-        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] = MakeObject(Empty{});
+        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
+            internal::TypeErasedObject(Empty{});
+        if (map_.player.has_value() &&
+            map_.player->player.location == core::Location{.x = x, .y = y})
+            map_.player = std::nullopt;
         return *this;
     }
 
@@ -168,23 +184,6 @@ class DefaultMapBuilder final : public MapBuilder
     }
 
   private:
-    void ensure_single_player(const int keep_x, const int keep_y)
-    {
-        for (int y = 0; y < internal::grid_height(map_); ++y)
-        {
-            for (int x = 0; x < internal::grid_width(map_); ++x)
-            {
-                if (x == keep_x && y == keep_y)
-                    continue;
-                auto &cell = map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
-                if (std::holds_alternative<Player>(cell.view()))
-                {
-                    cell = MakeObject(Empty{});
-                }
-            }
-        }
-    }
-
     mutable MapView view_;
     internal::Map map_;
     std::filesystem::path save_directory_;

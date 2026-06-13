@@ -45,9 +45,8 @@ void sync_size_from_map(BuilderEditorState &state)
 {
     state.resize_width = state.map->view().width;
     state.resize_height = state.map->view().height;
-    if (state.selected_cell.has_value() &&
-        (state.selected_cell->x >= state.resize_width ||
-         state.selected_cell->y >= state.resize_height))
+    if (state.selected_cell.has_value() && (state.selected_cell->x >= state.resize_width ||
+                                            state.selected_cell->y >= state.resize_height))
     {
         state.selected_cell.reset();
     }
@@ -98,7 +97,16 @@ void clear_selected_cell(BuilderEditorState &state)
 void select_cell(BuilderEditorState &state, const int x, const int y)
 {
     state.selected_cell = BuilderEditorState::CellSelection{.x = x, .y = y};
-    const core::CellView &cell = state.map->view().at(x, y);
+    const core::MapView &view = state.map->view();
+    if (view.player.has_value() && view.player->location == core::Location{.x = x, .y = y})
+    {
+        state.brush.symbol = view.player->symbol;
+        state.brush.manipulation_level = core::Object::ManipulationLevel::None;
+        sync_symbol_buffer(state);
+        return;
+    }
+
+    const core::CellView &cell = view.at(x, y);
     if (std::holds_alternative<core::Empty>(cell))
     {
         state.brush.symbol = '*';
@@ -193,18 +201,25 @@ void draw_brush_preview(const BuilderEditorState &state)
         if (state.brush.symbol == '^' || state.brush.symbol == 'v' || state.brush.symbol == '<' ||
             state.brush.symbol == '>')
         {
-            return core::Player{.symbol = state.brush.symbol, .inventory = {}};
+            return core::Empty{};
         }
         return core::Object{.symbol = state.brush.symbol,
                             .manipulation_level = state.brush.manipulation_level};
     }();
+    const bool preview_is_player = state.brush.symbol == '^' || state.brush.symbol == 'v' ||
+                                   state.brush.symbol == '<' || state.brush.symbol == '>';
 
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 cell_max(origin.x + 72.0f, origin.y + 72.0f);
-    draw_list->AddRectFilled(origin, cell_max, tile_fill(preview), 14.0f);
-    draw_list->AddRect(origin, cell_max, tile_outline(preview), 14.0f, 0, 3.0f);
-    draw_tile_symbol(*draw_list, origin, cell_max, core::symbol_of(preview), 40.0f);
+    draw_list->AddRectFilled(origin, cell_max,
+                             preview_is_player ? IM_COL32(236, 177, 79, 255) : tile_fill(preview),
+                             14.0f);
+    draw_list->AddRect(origin, cell_max,
+                       preview_is_player ? IM_COL32(255, 226, 157, 255) : tile_outline(preview),
+                       14.0f, 0, 3.0f);
+    draw_tile_symbol(*draw_list, origin, cell_max,
+                     preview_is_player ? state.brush.symbol : core::symbol_of(preview), 40.0f);
     ImGui::Dummy(ImVec2(72.0f, 72.0f));
 }
 
@@ -295,17 +310,22 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
 void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const float tile_size,
                    const ImVec2 origin, const int x, const int y)
 {
-    const core::CellView &cell = state.map->view().at(x, y);
+    const core::MapView &view = state.map->view();
+    const core::CellView &cell = view.at(x, y);
+    const bool has_player =
+        view.player.has_value() && view.player->location == core::Location{.x = x, .y = y};
     const ImVec2 cell_min(origin.x + x * tile_size, origin.y + y * tile_size);
     const ImVec2 cell_max(cell_min.x + tile_size - 4.0f, cell_min.y + tile_size - 4.0f);
-    draw_list.AddRectFilled(cell_min, cell_max, tile_fill(cell), 12.0f);
-    const bool selected =
-        state.selected_cell.has_value() && state.selected_cell->x == x &&
-        state.selected_cell->y == y;
+    draw_list.AddRectFilled(cell_min, cell_max,
+                            has_player ? IM_COL32(236, 177, 79, 255) : tile_fill(cell), 12.0f);
+    const bool selected = state.selected_cell.has_value() && state.selected_cell->x == x &&
+                          state.selected_cell->y == y;
     draw_list.AddRect(cell_min, cell_max,
-                      selected ? IM_COL32(255, 231, 168, 255) : tile_outline(cell), 12.0f, 0,
-                      selected ? 4.0f : 2.0f);
-    draw_tile_symbol(draw_list, cell_min, cell_max, core::symbol_of(cell), tile_size * 0.58f);
+                      selected ? IM_COL32(255, 231, 168, 255)
+                               : (has_player ? IM_COL32(255, 226, 157, 255) : tile_outline(cell)),
+                      12.0f, 0, selected ? 4.0f : 2.0f);
+    draw_tile_symbol(draw_list, cell_min, cell_max,
+                     has_player ? view.player->symbol : core::symbol_of(cell), tile_size * 0.58f);
 
     ImGui::SetCursorScreenPos(cell_min);
     ImGui::InvisibleButton(("cell_" + std::to_string(x) + "_" + std::to_string(y)).c_str(),

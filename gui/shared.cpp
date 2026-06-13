@@ -337,10 +337,6 @@ ImU32 tile_fill(const core::CellView& cell)
             {
                 return IM_COL32(31, 37, 43, 255);
             }
-            else if constexpr (std::is_same_v<T, core::Player>)
-            {
-                return IM_COL32(236, 177, 79, 255);
-            }
             else
             {
                 if (value.symbol == '=' || value.symbol == '+') return IM_COL32(108, 167, 124, 255);
@@ -358,11 +354,7 @@ ImU32 tile_outline(const core::CellView& cell)
         [](const auto& value) -> ImU32
         {
             using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, core::Player>)
-            {
-                return IM_COL32(255, 226, 157, 255);
-            }
-            else if constexpr (std::is_same_v<T, core::Object>)
+            if constexpr (std::is_same_v<T, core::Object>)
             {
                 if (value.symbol == '=' || value.symbol == '+') return IM_COL32(170, 223, 170, 255);
             }
@@ -423,6 +415,17 @@ void draw_game_tile(const GridRenderContext& ctx, const core::CellView& cell, co
     draw_game_tile_symbol(ctx, cell, cell_min, cell_max);
 }
 
+void draw_player_tile(const GridRenderContext& ctx, const core::Player& player)
+{
+    const int x = player.location.x;
+    const int y = player.location.y;
+    const ImVec2 cell_min(ctx.origin.x + x * ctx.tile_size, ctx.origin.y + y * ctx.tile_size);
+    const ImVec2 cell_max(cell_min.x + ctx.tile_size - 4.0f, cell_min.y + ctx.tile_size - 4.0f);
+    ctx.draw_list->AddRectFilled(cell_min, cell_max, IM_COL32(236, 177, 79, 255), 12.0f);
+    ctx.draw_list->AddRect(cell_min, cell_max, IM_COL32(255, 226, 157, 255), 12.0f, 0, 3.0f);
+    draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, player.symbol, ctx.tile_size * 0.58f);
+}
+
 void draw_game_solved_badge(ImDrawList& draw_list, const ImVec2 origin)
 {
     const char* message = "Equation Solved";
@@ -467,6 +470,8 @@ void draw_game_grid(const core::MapView& view, const std::optional<core::GameRes
         for (int x = 0; x < view.width; ++x)
             draw_game_tile(ctx, view.at(x, y), x, y);
     }
+    if (view.player.has_value())
+        draw_player_tile(ctx, *view.player);
     if (solved)
         draw_game_solved_badge(*draw_list, origin);
 
