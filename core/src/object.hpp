@@ -1,18 +1,8 @@
 #pragma once
 
 #include "core/map.hpp"
-#include "game_model.hpp"
 
 #include <utility>
-
-namespace core
-{
-char glyph(const Empty &value);
-char glyph(const Object &value);
-
-CellView view(const Empty &value);
-CellView view(const Object &value);
-} // namespace core
 
 namespace core::internal
 {
@@ -30,15 +20,15 @@ template <typename T> class MakeObject
         return *this;
     }
 
-    TypeErasedObject build() &&
+    core::Object build() &&
     {
-        return TypeErasedObject(core::Object{
+        return core::Object{
             .symbol = glyph(value_),
             .manipulation_level = manipulation_level_,
-        });
+        };
     }
 
-    operator TypeErasedObject() && { return std::move(*this).build(); }
+    operator core::Object() && { return std::move(*this).build(); }
 
   private:
     T value_;

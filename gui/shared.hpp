@@ -36,8 +36,9 @@ void draw_game_assignment_feedback(const GamePlayState& state);
 void draw_game_inventory(const core::MapView& view);
 void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result);
 
-ImU32 tile_fill(const core::CellView& cell);
-ImU32 tile_outline(const core::CellView& cell);
+ImU32 empty_tile_fill();
+ImU32 object_tile_fill(const core::Object& object);
+ImU32 object_tile_outline(const core::Object& object);
 void draw_tile_symbol(ImDrawList& draw_list, const ImVec2& cell_min, const ImVec2& cell_max, char symbol,
                       float font_size, ImU32 color = IM_COL32(245, 242, 233, 255));
 }  // namespace gui

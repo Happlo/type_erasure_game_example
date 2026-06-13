@@ -11,7 +11,6 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
-#include <variant>
 #include <vector>
 
 using namespace core::internal;
@@ -19,9 +18,6 @@ namespace core
 {
 namespace
 {
-constexpr int kDefaultMapWidth = 9;
-constexpr int kDefaultMapHeight = 7;
-
 internal::Facing player_facing_from_symbol(const char symbol)
 {
     switch (symbol)
@@ -44,14 +40,9 @@ bool is_player_symbol(const char symbol)
     return symbol == '^' || symbol == 'v' || symbol == '<' || symbol == '>';
 }
 
-internal::Map make_empty_map(const int width, const int height)
+internal::Map make_empty_map()
 {
-    if (width <= 0 || height <= 0)
-        throw std::runtime_error("Map size must be positive");
-
     internal::Map map;
-    map.grid.assign(static_cast<size_t>(height),
-                    std::vector<internal::TypeErasedObject>(static_cast<size_t>(width), Empty{}));
     map.player =
         internal::PlayerState{.player = core::Player{.location = core::Location{.x = 0, .y = 0}},
                               .facing = internal::Facing::South};
@@ -82,8 +73,7 @@ class DefaultMapBuilder final : public MapBuilder
 {
   public:
     explicit DefaultMapBuilder(std::filesystem::path save_directory = {})
-        : map_(make_empty_map(kDefaultMapWidth, kDefaultMapHeight)),
-          save_directory_(std::move(save_directory))
+        : map_(make_empty_map()), save_directory_(std::move(save_directory))
     {
     }
 
@@ -110,28 +100,6 @@ class DefaultMapBuilder final : public MapBuilder
         return *this;
     }
 
-    MapBuilder &resize(const int new_width, const int new_height) override
-    {
-        std::vector<std::vector<internal::TypeErasedObject>> next(
-            static_cast<size_t>(new_height),
-            std::vector<internal::TypeErasedObject>(static_cast<size_t>(new_width), Empty{}));
-        for (int y = 0; y < new_height && y < internal::grid_height(map_); ++y)
-        {
-            for (int x = 0; x < new_width && x < internal::grid_width(map_); ++x)
-            {
-                next[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                    std::move(map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)]);
-            }
-        }
-
-        map_.grid = std::move(next);
-        if (map_.player.has_value() &&
-            !internal::in_bounds(map_, Location{.x = map_.player->player.location.x,
-                                                .y = map_.player->player.location.y}))
-            map_.player = std::nullopt;
-        return *this;
-    }
-
     MapBuilder &apply_brush(const int x, const int y, const Brush &brush) override
     {
         if (is_player_symbol(brush.symbol))
@@ -139,8 +107,7 @@ class DefaultMapBuilder final : public MapBuilder
             map_.player = internal::PlayerState{
                 .player = core::Player{.location = core::Location{.x = x, .y = y}},
                 .facing = player_facing_from_symbol(brush.symbol)};
-            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                internal::TypeErasedObject(Empty{});
+            map_.objects.erase(core::Location{.x = x, .y = y});
             return *this;
         }
 
@@ -150,21 +117,24 @@ class DefaultMapBuilder final : public MapBuilder
 
         if ('0' <= brush.symbol && brush.symbol <= '9')
         {
-            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                MakeObject(brush.symbol - '0').with_manipulation_level(brush.manipulation_level);
+            map_.objects.insert_or_assign(
+                core::Location{.x = x, .y = y},
+                MakeObject(brush.symbol - '0')
+                    .with_manipulation_level(brush.manipulation_level)
+                    .build());
         }
         else
         {
-            map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                MakeObject(brush.symbol).with_manipulation_level(brush.manipulation_level);
+            map_.objects.insert_or_assign(
+                core::Location{.x = x, .y = y},
+                MakeObject(brush.symbol).with_manipulation_level(brush.manipulation_level).build());
         }
         return *this;
     }
 
     MapBuilder &clear_cell(const int x, const int y) override
     {
-        map_.grid[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-            internal::TypeErasedObject(Empty{});
+        map_.objects.erase(core::Location{.x = x, .y = y});
         if (map_.player.has_value() &&
             map_.player->player.location == core::Location{.x = x, .y = y})
             map_.player = std::nullopt;
@@ -195,10 +165,9 @@ std::unique_ptr<MapBuilder> MapBuilder::create_default(const std::filesystem::pa
     return std::make_unique<DefaultMapBuilder>(save_directory);
 }
 
-std::unique_ptr<MapBuilder> MapBuilder::create(const int width, const int height,
-                                               const std::filesystem::path &save_directory)
+std::unique_ptr<MapBuilder> MapBuilder::create(const std::filesystem::path &save_directory)
 {
-    return std::make_unique<DefaultMapBuilder>(make_empty_map(width, height), save_directory);
+    return std::make_unique<DefaultMapBuilder>(make_empty_map(), save_directory);
 }
 
 std::unique_ptr<MapBuilder> MapBuilder::load_from_file(const std::filesystem::path &path)

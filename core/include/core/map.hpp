@@ -1,18 +1,12 @@
 #pragma once
 
 #include "location.hpp"
-#include <cstddef>
+#include <map>
 #include <optional>
-#include <variant>
 #include <vector>
 
 namespace core
 {
-
-struct Empty
-{
-    char symbol{' '};
-};
 
 struct Object
 {
@@ -34,27 +28,11 @@ struct Player
     std::vector<Object> inventory{};
 };
 
-using CellView = std::variant<Empty, Object>;
-
-inline char symbol_of(const CellView &cell)
-{
-    return std::visit([](const auto &value) { return value.symbol; }, cell);
-}
-
 struct MapView
 {
-    int width{0};
-    int height{0};
     int commits_left{0};
     int undos_left{0};
     std::optional<Player> player;
-    std::vector<CellView> cells;
-
-    const CellView &at(const Location &location) const
-    {
-        return cells[static_cast<size_t>(location.y * width + location.x)];
-    }
-
-    const CellView &at(const int x, const int y) const { return at(Location{.x = x, .y = y}); }
+    std::map<Location, Object> objects;
 };
 } // namespace core

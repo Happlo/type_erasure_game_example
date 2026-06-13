@@ -4,13 +4,9 @@
 
 namespace core
 {
-char glyph(const Empty &) { return ' '; }
-
 char glyph(const Object &value) { return value.symbol; }
 
-CellView view(const Empty &value) { return Empty{.symbol = glyph(value)}; }
-
-CellView view(const Object &value) { return value; }
+Object view(const Object &value) { return value; }
 } // namespace core
 
 namespace core::internal

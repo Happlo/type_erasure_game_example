@@ -9,16 +9,15 @@
 #include <memory>
 #include <string>
 
-namespace core
-{
-bool operator==(const CellView &cell, const char symbol) { return symbol_of(cell) == symbol; }
-
-bool operator==(const char symbol, const CellView &cell) { return cell == symbol; }
-} // namespace core
-
 namespace
 {
 using ManipulationLevel = core::Object::ManipulationLevel;
+
+char symbol_at(const core::MapView &view, const int x, const int y)
+{
+    const auto object = view.objects.find(core::Location{.x = x, .y = y});
+    return object == view.objects.end() ? ' ' : object->second.symbol;
+}
 
 class CurrentPathGuard
 {
@@ -55,7 +54,7 @@ void write_text_file(const std::filesystem::path &path, const std::string &text)
 
 std::unique_ptr<core::Game> create_reference_game()
 {
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(9, 7);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(6)
         .set_undos_left(6)
         .apply_brush(0, 6, core::Brush{.symbol = 'v'})
@@ -82,18 +81,18 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 6}));
     EXPECT_EQ(game->view().player->symbol, 'v');
-    EXPECT_EQ(game->view().at(0, 6), ' ');
-    EXPECT_EQ(game->view().at(1, 6), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 0, 6), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 6), ' ');
 
     // When
     game->apply_event(core::Event::MoveRight);
 
     // Then
-    EXPECT_EQ(game->view().at(0, 6), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 0, 6), ' ');
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 1, .y = 6}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(1, 6), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 6), ' ');
 }
 
 TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
@@ -122,7 +121,7 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 1, .y = 5}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(2, 5), '4');
+    EXPECT_EQ(symbol_at(game->view(), 2, 5), '4');
 
     // When
     game->apply_event(core::Event::MoveRight);
@@ -131,14 +130,14 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 2, .y = 5}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(2, 5), ' ');
-    EXPECT_EQ(game->view().at(3, 5), '4');
+    EXPECT_EQ(symbol_at(game->view(), 2, 5), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 3, 5), '4');
 }
 
 TEST(CoreGameTest, pickable_item_can_be_picked_up)
 {
     // Given
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 3);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(2)
         .set_undos_left(1)
         .apply_brush(1, 1, core::Brush{.symbol = '>'})
@@ -150,14 +149,14 @@ TEST(CoreGameTest, pickable_item_can_be_picked_up)
     game->apply_event(core::Event::PickItem);
 
     // Then
-    EXPECT_EQ(game->view().at(2, 1), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 2, 1), ' ');
     EXPECT_EQ(game->view().player->inventory.at(0).symbol, '*');
 }
 
 TEST(CoreGameTest, GivenPickableItemWhenWalkingIntoItThenItCanAlsoBePushed)
 {
     // Given
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 1);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->apply_brush(0, 0, core::Brush{.symbol = '>'})
         .apply_brush(1, 0,
                      core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
@@ -167,19 +166,19 @@ TEST(CoreGameTest, GivenPickableItemWhenWalkingIntoItThenItCanAlsoBePushed)
     game->apply_event(core::Event::MoveRight);
 
     // Then
-    EXPECT_EQ(game->view().at(0, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 1, .y = 0}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(1, 0), ' ');
-    EXPECT_EQ(game->view().at(2, 0), '*');
-    EXPECT_EQ(game->view().at(3, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 2, 0), '*');
+    EXPECT_EQ(symbol_at(game->view(), 3, 0), ' ');
 }
 
 TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedInView)
 {
     // Given
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(5, 2);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->apply_brush(0, 0, core::Brush{.symbol = '>'})
         .apply_brush(1, 0,
                      core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick})
@@ -203,7 +202,7 @@ TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedIn
 TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenActionFails)
 {
     // Given
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 2);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->apply_brush(0, 0, core::Brush{.symbol = '>'})
         .apply_brush(1, 0,
                      core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
@@ -216,23 +215,23 @@ TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenAc
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(0, 0), ' ');
-    EXPECT_EQ(game->view().at(1, 0), '+');
+    EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), '+');
     EXPECT_TRUE(game->view().player->inventory.empty());
 
     game->apply_event(core::Event::DropItem);
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(0, 0), ' ');
-    EXPECT_EQ(game->view().at(1, 0), '+');
+    EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), '+');
     EXPECT_TRUE(game->view().player->inventory.empty());
 }
 
 TEST(CoreGameTest, GivenMapBuilderWhenCreatingGameThenGameUsesBuilderMap)
 {
     // Given
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(5, 3);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(2)
         .set_undos_left(1)
         .apply_brush(0, 2, core::Brush{.symbol = '>'})
@@ -253,10 +252,10 @@ TEST(CoreGameTest, GivenMapBuilderWhenCreatingGameThenGameUsesBuilderMap)
     ASSERT_TRUE(view.player.has_value());
     EXPECT_EQ(view.player->location, (core::Location{.x = 0, .y = 2}));
     EXPECT_EQ(view.player->symbol, '>');
-    EXPECT_EQ(view.at(0, 2), ' ');
-    EXPECT_EQ(view.at(1, 2), '4');
-    EXPECT_EQ(view.at(2, 1), '+');
-    EXPECT_EQ(view.at(3, 1), '=');
+    EXPECT_EQ(symbol_at(view, 0, 2), ' ');
+    EXPECT_EQ(symbol_at(view, 1, 2), '4');
+    EXPECT_EQ(symbol_at(view, 2, 1), '+');
+    EXPECT_EQ(symbol_at(view, 3, 1), '=');
 }
 
 TEST(CoreGameTest, GivenMapBuilderWhenSavingAndLoadingThenMapIsPreserved)
@@ -264,7 +263,7 @@ TEST(CoreGameTest, GivenMapBuilderWhenSavingAndLoadingThenMapIsPreserved)
     // Given
     const std::filesystem::path path =
         std::filesystem::temp_directory_path() / "type_erasure_roundtrip_map.json";
-    std::unique_ptr<core::MapBuilder> original = core::MapBuilder::create(4, 3);
+    std::unique_ptr<core::MapBuilder> original = core::MapBuilder::create();
     original->set_commits_left(3)
         .set_undos_left(7)
         .apply_brush(0, 2, core::Brush{.symbol = '^'})
@@ -280,9 +279,9 @@ TEST(CoreGameTest, GivenMapBuilderWhenSavingAndLoadingThenMapIsPreserved)
     ASSERT_TRUE(restored->view().player.has_value());
     EXPECT_EQ(restored->view().player->location, (core::Location{.x = 0, .y = 2}));
     EXPECT_EQ(restored->view().player->symbol, '^');
-    EXPECT_EQ(restored->view().at(0, 2), ' ');
-    EXPECT_EQ(restored->view().at(1, 2), '2');
-    EXPECT_EQ(restored->view().at(1, 1), '*');
+    EXPECT_EQ(symbol_at(restored->view(), 0, 2), ' ');
+    EXPECT_EQ(symbol_at(restored->view(), 1, 2), '2');
+    EXPECT_EQ(symbol_at(restored->view(), 1, 1), '*');
     EXPECT_EQ(restored->view().commits_left, original->view().commits_left);
     EXPECT_EQ(restored->view().undos_left, original->view().undos_left);
 }
@@ -332,7 +331,7 @@ TEST(LoginViewTest, GivenMapsDirectoryWhenSelectingMapThenGameLoadsFromSelectedM
     // Given
     const std::filesystem::path root = make_login_test_root();
     CurrentPathGuard current_path(root);
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(3, 1);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->apply_brush(0, 0, core::Brush{.symbol = '>'})
         .apply_brush(1, 0, core::Brush{.symbol = '='})
         .apply_brush(2, 0,
@@ -352,9 +351,9 @@ TEST(LoginViewTest, GivenMapsDirectoryWhenSelectingMapThenGameLoadsFromSelectedM
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(0, 0), ' ');
-    EXPECT_EQ(game->view().at(1, 0), '=');
-    EXPECT_EQ(game->view().at(2, 0), '0');
+    EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), '=');
+    EXPECT_EQ(symbol_at(game->view(), 2, 0), '0');
 }
 
 TEST(LoginViewTest, GivenUserCreatesAndSavesMapThenMapIsStoredUnderUserDirectory)
@@ -365,8 +364,7 @@ TEST(LoginViewTest, GivenUserCreatesAndSavesMapThenMapIsStoredUnderUserDirectory
     std::unique_ptr<core::LoginView> login = core::LoginView::create();
     core::User &user = login->create_user("eve");
     std::unique_ptr<core::MapBuilder> map = user.create_new_map();
-    map->resize(3, 1)
-        .apply_brush(0, 0, core::Brush{.symbol = '>'})
+    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
         .apply_brush(1, 0, core::Brush{.symbol = '='})
         .apply_brush(2, 0,
                      core::Brush{.symbol = '0', .manipulation_level = ManipulationLevel::Push});
@@ -383,9 +381,9 @@ TEST(LoginViewTest, GivenUserCreatesAndSavesMapThenMapIsStoredUnderUserDirectory
     ASSERT_TRUE(game->view().player.has_value());
     EXPECT_EQ(game->view().player->location, (core::Location{.x = 0, .y = 0}));
     EXPECT_EQ(game->view().player->symbol, '>');
-    EXPECT_EQ(game->view().at(0, 0), ' ');
-    EXPECT_EQ(game->view().at(1, 0), '=');
-    EXPECT_EQ(game->view().at(2, 0), '0');
+    EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), '=');
+    EXPECT_EQ(symbol_at(game->view(), 2, 0), '0');
 }
 
 TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucceeds)
@@ -393,7 +391,7 @@ TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucce
     // Given
     const std::filesystem::path path =
         std::filesystem::temp_directory_path() / "type_erasure_no_player_map.json";
-    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create(4, 3);
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(0)
         .set_undos_left(0)
         .clear_cell(0, 0)
@@ -406,8 +404,7 @@ TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucce
     std::unique_ptr<core::MapBuilder> builder = core::MapBuilder::load_from_file(path);
 
     // Then
-    EXPECT_EQ(builder->view().width, 4);
-    EXPECT_EQ(builder->view().height, 3);
-    EXPECT_EQ(builder->view().at(1, 0), '1');
-    EXPECT_EQ(builder->view().at(2, 0), '+');
+    EXPECT_FALSE(builder->view().player.has_value());
+    EXPECT_EQ(symbol_at(builder->view(), 1, 0), '1');
+    EXPECT_EQ(symbol_at(builder->view(), 2, 0), '+');
 }

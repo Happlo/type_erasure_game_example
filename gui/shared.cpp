@@ -4,7 +4,6 @@
 #include <array>
 #include <cfloat>
 #include <cstdio>
-#include <type_traits>
 #include <utility>
 
 namespace gui
@@ -50,13 +49,81 @@ struct GridRenderContext
 {
     ImDrawList* draw_list;
     ImVec2 origin;
+    core::Location min_location;
     float tile_size;
     bool solved;
     const core::GameResult* equation_result;
 };
 
+struct DisplayBounds
+{
+    core::Location min;
+    core::Location max;
+};
+
+DisplayBounds display_bounds(const core::MapView& view)
+{
+    DisplayBounds bounds{.min = core::Location{.x = 0, .y = 0},
+                         .max = core::Location{.x = 0, .y = 0}};
+    bool initialized = false;
+    const auto include = [&](const core::Location& location)
+    {
+        if (!initialized)
+        {
+            bounds.min = location;
+            bounds.max = location;
+            initialized = true;
+            return;
+        }
+        bounds.min.x = std::min(bounds.min.x, location.x);
+        bounds.min.y = std::min(bounds.min.y, location.y);
+        bounds.max.x = std::max(bounds.max.x, location.x);
+        bounds.max.y = std::max(bounds.max.y, location.y);
+    };
+
+    if (view.player.has_value())
+        include(view.player->location);
+    for (const auto& [location, object] : view.objects)
+    {
+        (void)object;
+        include(location);
+    }
+
+    return bounds;
+}
+
+int display_width(const DisplayBounds& bounds) { return bounds.max.x - bounds.min.x + 1; }
+
+int display_height(const DisplayBounds& bounds) { return bounds.max.y - bounds.min.y + 1; }
+
 constexpr ImVec2 kMoveButtonSize{96.0f, 36.0f};
 constexpr ImVec2 kActionButtonSize{150.0f, 38.0f};
+constexpr int kMaxRenderedTilesPerAxis = 15;
+
+std::pair<int, int> clamp_axis(const int min_value, const int max_value, const int focus)
+{
+    const int size = max_value - min_value + 1;
+    if (size <= kMaxRenderedTilesPerAxis)
+        return {min_value, max_value};
+
+    int start = focus - kMaxRenderedTilesPerAxis / 2;
+    start = std::max(start, min_value);
+    start = std::min(start, max_value - kMaxRenderedTilesPerAxis + 1);
+    return {start, start + kMaxRenderedTilesPerAxis - 1};
+}
+
+DisplayBounds limit_display_bounds(const DisplayBounds& bounds, const core::MapView& view)
+{
+    if (!view.player.has_value())
+        return bounds;
+
+    const auto [min_x, max_x] =
+        clamp_axis(bounds.min.x, bounds.max.x, view.player->location.x);
+    const auto [min_y, max_y] =
+        clamp_axis(bounds.min.y, bounds.max.y, view.player->location.y);
+    return DisplayBounds{.min = core::Location{.x = min_x, .y = min_y},
+                         .max = core::Location{.x = max_x, .y = max_y}};
+}
 }  // namespace
 
 void apply_style()
@@ -327,40 +394,23 @@ void draw_game_inventory(const core::MapView& view)
     }
 }
 
-ImU32 tile_fill(const core::CellView& cell)
+ImU32 empty_tile_fill()
 {
-    return std::visit(
-        [](const auto& value) -> ImU32
-        {
-            using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, core::Empty>)
-            {
-                return IM_COL32(31, 37, 43, 255);
-            }
-            else
-            {
-                if (value.symbol == '=' || value.symbol == '+') return IM_COL32(108, 167, 124, 255);
-                if (value.manipulation_level == core::Object::ManipulationLevel::Pick) return IM_COL32(97, 147, 196, 255);
-                if (value.manipulation_level == core::Object::ManipulationLevel::Push) return IM_COL32(189, 112, 143, 255);
-                return IM_COL32(116, 123, 132, 255);
-            }
-        },
-        cell);
+    return IM_COL32(31, 37, 43, 255);
 }
 
-ImU32 tile_outline(const core::CellView& cell)
+ImU32 object_tile_fill(const core::Object& object)
 {
-    return std::visit(
-        [](const auto& value) -> ImU32
-        {
-            using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, core::Object>)
-            {
-                if (value.symbol == '=' || value.symbol == '+') return IM_COL32(170, 223, 170, 255);
-            }
-            return IM_COL32(72, 79, 88, 255);
-        },
-        cell);
+    if (object.symbol == '=' || object.symbol == '+') return IM_COL32(108, 167, 124, 255);
+    if (object.manipulation_level == core::Object::ManipulationLevel::Pick) return IM_COL32(97, 147, 196, 255);
+    if (object.manipulation_level == core::Object::ManipulationLevel::Push) return IM_COL32(189, 112, 143, 255);
+    return IM_COL32(116, 123, 132, 255);
+}
+
+ImU32 object_tile_outline(const core::Object& object)
+{
+    if (object.symbol == '=' || object.symbol == '+') return IM_COL32(170, 223, 170, 255);
+    return IM_COL32(72, 79, 88, 255);
 }
 
 void draw_tile_symbol(ImDrawList& draw_list, const ImVec2& cell_min, const ImVec2& cell_max, const char symbol,
@@ -375,26 +425,22 @@ void draw_tile_symbol(ImDrawList& draw_list, const ImVec2& cell_min, const ImVec
     draw_list.AddText(font, font_size, text_pos, color, glyph);
 }
 
-void draw_game_tile_symbol(const GridRenderContext& ctx, const core::CellView& cell,
-                           const ImVec2 cell_min, const ImVec2 cell_max)
-{
-    const float font_size = ctx.tile_size * 0.58f;
-    draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, core::symbol_of(cell), font_size);
-}
-
-void draw_game_tile(const GridRenderContext& ctx, const core::CellView& cell, const int x,
+void draw_game_tile(const GridRenderContext& ctx, const core::Object* object, const int x,
                     const int y)
 {
     const ImVec2 cell_min(ctx.origin.x + x * ctx.tile_size, ctx.origin.y + y * ctx.tile_size);
     const ImVec2 cell_max(cell_min.x + ctx.tile_size - 4.0f, cell_min.y + ctx.tile_size - 4.0f);
-    ImU32 fill = tile_fill(cell);
-    ImU32 outline = ctx.solved ? IM_COL32(182, 240, 175, 255) : tile_outline(cell);
+    ImU32 fill = object == nullptr ? empty_tile_fill() : object_tile_fill(*object);
+    ImU32 outline =
+        ctx.solved ? IM_COL32(182, 240, 175, 255)
+                   : (object == nullptr ? IM_COL32(72, 79, 88, 255) : object_tile_outline(*object));
     float thickness = ctx.solved ? 3.0f : 2.0f;
 
-    if (core::symbol_of(cell) == '=' && ctx.equation_result != nullptr)
+    const core::Location location{.x = ctx.min_location.x + x, .y = ctx.min_location.y + y};
+    if (object != nullptr && object->symbol == '=' && ctx.equation_result != nullptr)
     {
         core::EqualityStatus equality_status;
-        if (tile_has_equal_status(*ctx.equation_result, x, y, equality_status))
+        if (tile_has_equal_status(*ctx.equation_result, location.x, location.y, equality_status))
         {
             if (equality_status == core::EqualityStatus::Equal)
             {
@@ -412,13 +458,14 @@ void draw_game_tile(const GridRenderContext& ctx, const core::CellView& cell, co
 
     ctx.draw_list->AddRectFilled(cell_min, cell_max, fill, 12.0f);
     ctx.draw_list->AddRect(cell_min, cell_max, outline, 12.0f, 0, thickness);
-    draw_game_tile_symbol(ctx, cell, cell_min, cell_max);
+    if (object != nullptr)
+        draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, object->symbol, ctx.tile_size * 0.58f);
 }
 
 void draw_player_tile(const GridRenderContext& ctx, const core::Player& player)
 {
-    const int x = player.location.x;
-    const int y = player.location.y;
+    const int x = player.location.x - ctx.min_location.x;
+    const int y = player.location.y - ctx.min_location.y;
     const ImVec2 cell_min(ctx.origin.x + x * ctx.tile_size, ctx.origin.y + y * ctx.tile_size);
     const ImVec2 cell_max(cell_min.x + ctx.tile_size - 4.0f, cell_min.y + ctx.tile_size - 4.0f);
     ctx.draw_list->AddRectFilled(cell_min, cell_max, IM_COL32(236, 177, 79, 255), 12.0f);
@@ -455,20 +502,27 @@ void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const
 void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result)
 {
     const bool solved = result.has_value() && game_is_solved(*result);
+    const DisplayBounds bounds = limit_display_bounds(display_bounds(view), view);
+    const int width = display_width(bounds);
+    const int height = display_height(bounds);
     const float tile_size =
-        std::clamp(560.0f / static_cast<float>(std::max(view.width, view.height)), 36.0f, 72.0f);
+        std::clamp(560.0f / static_cast<float>(std::max(width, height)), 36.0f, 72.0f);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
-    const ImVec2 total_size(tile_size * view.width, tile_size * view.height);
+    const ImVec2 total_size(tile_size * width, tile_size * height);
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     const ImVec2 board_max(origin.x + total_size.x, origin.y + total_size.y);
     const GridRenderContext ctx{
-        draw_list, origin, tile_size, solved, result.has_value() ? &*result : nullptr};
+        draw_list, origin, bounds.min, tile_size, solved, result.has_value() ? &*result : nullptr};
 
     draw_game_grid_background(*draw_list, origin, board_max, solved);
-    for (int y = 0; y < view.height; ++y)
+    for (int y = 0; y < height; ++y)
     {
-        for (int x = 0; x < view.width; ++x)
-            draw_game_tile(ctx, view.at(x, y), x, y);
+        for (int x = 0; x < width; ++x)
+        {
+            const auto object = view.objects.find(
+                core::Location{.x = bounds.min.x + x, .y = bounds.min.y + y});
+            draw_game_tile(ctx, object == view.objects.end() ? nullptr : &object->second, x, y);
+        }
     }
     if (view.player.has_value())
         draw_player_tile(ctx, *view.player);

@@ -26,7 +26,6 @@ class MapBuilder
     virtual MapBuilder &set_commits_left(int commits_left) = 0;
     virtual MapBuilder &set_undos_left(int undos_left) = 0;
 
-    virtual MapBuilder &resize(int new_width, int new_height) = 0;
     virtual MapBuilder &apply_brush(int x, int y, const Brush &brush) = 0;
     virtual MapBuilder &clear_cell(int x, int y) = 0;
 
@@ -36,7 +35,7 @@ class MapBuilder
     static std::unique_ptr<MapBuilder> create_default(
         const std::filesystem::path &save_directory = {});
     static std::unique_ptr<MapBuilder> create(
-        int width, int height, const std::filesystem::path &save_directory = {});
+        const std::filesystem::path &save_directory = {});
     static std::unique_ptr<MapBuilder> load_from_file(const std::filesystem::path &path);
     static const std::vector<char> &solver_operators();
     static const std::vector<char> &equation_delimiters();

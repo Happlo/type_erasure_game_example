@@ -4,21 +4,6 @@
 
 namespace core::internal
 {
-int grid_height(const Map &map) { return static_cast<int>(map.grid.size()); }
-
-int grid_width(const Map &map)
-{
-    if (map.grid.empty())
-        return 0;
-    return static_cast<int>(map.grid[0].size());
-}
-
-bool in_bounds(const Map &map, const Location &location)
-{
-    return location.x >= 0 && location.y >= 0 && location.x < grid_width(map) &&
-           location.y < grid_height(map);
-}
-
 void commit(History &history)
 {
     assert(!history.empty());
@@ -46,21 +31,12 @@ const Map &current(const History &history)
 core::MapView build_view(const Map &map)
 {
     core::MapView view;
-    view.width = grid_width(map);
-    view.height = grid_height(map);
     view.commits_left = map.commits_left;
     view.undos_left = map.undos_left;
     view.player = get_public_player(map);
-    view.cells.reserve(static_cast<size_t>(view.width * view.height));
-
-    for (int y = 0; y < view.height; ++y)
-    {
-        for (int x = 0; x < view.width; ++x)
-        {
-            view.cells.push_back(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view());
-        }
-    }
-
+    view.objects.clear();
+    for (const auto &[location, object] : map.objects)
+        view.objects.insert_or_assign(location, object.view());
     return view;
 }
 } // namespace core::internal

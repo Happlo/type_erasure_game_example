@@ -7,9 +7,9 @@
 
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <stdexcept>
 #include <string>
-#include <unordered_set>
 
 namespace core::map_io
 {
@@ -52,7 +52,7 @@ internal::PlayerState player_from_tile(const json &tile)
         .facing = facing};
 }
 
-internal::TypeErasedObject object_from_tile(const json &tile)
+core::Object object_from_tile(const json &tile)
 {
     const bool pushable = tile.value("pushable", false);
     const bool pickable = tile.value("pickable", false);
@@ -69,18 +69,14 @@ internal::TypeErasedObject object_from_tile(const json &tile)
     return internal::MakeObject(symbol).with_manipulation_level(manipulation_level);
 }
 
-json tile_from_object(const internal::TypeErasedObject &object, int x, int y)
+json tile_from_object(const core::Object &object, const Location &location)
 {
-    const core::CellView view = object.view();
-    json tile{{"x", x}, {"y", y}, {"symbol", std::string(1, core::symbol_of(view))}};
+    json tile{{"x", location.x}, {"y", location.y}, {"symbol", std::string(1, object.symbol)}};
 
-    if (const auto *props = std::get_if<core::Object>(&view); props != nullptr)
-    {
-        if (props->manipulation_level != core::Object::ManipulationLevel::None)
-            tile["pushable"] = true;
-        if (props->manipulation_level == core::Object::ManipulationLevel::Pick)
-            tile["pickable"] = true;
-    }
+    if (object.manipulation_level != core::Object::ManipulationLevel::None)
+        tile["pushable"] = true;
+    if (object.manipulation_level == core::Object::ManipulationLevel::Pick)
+        tile["pickable"] = true;
     return tile;
 }
 
@@ -104,32 +100,20 @@ internal::Map map_from_json(std::string_view json_text, const bool require_playe
         throw std::runtime_error(std::string("Invalid map JSON: ") + ex.what());
     }
 
-    const int width = root.at("size").at("width").get<int>();
-    const int height = root.at("size").at("height").get<int>();
-    if (width <= 0 || height <= 0)
-        throw std::runtime_error("Map size must be positive");
-
     internal::Map map;
     map.commits_left = root.value("resources", json::object()).value("commits", 6);
     map.undos_left = root.value("resources", json::object()).value("undos", 6);
-    map.grid.assign(static_cast<size_t>(height),
-                    std::vector<internal::TypeErasedObject>(static_cast<size_t>(width), Empty{}));
 
-    std::unordered_set<long long> occupied;
+    std::set<Location> occupied;
     const auto &tiles = root.at("tiles");
     for (const auto &tile : tiles)
     {
         const int x = tile.at("x").get<int>();
         const int y = tile.at("y").get<int>();
-        if (x < 0 || y < 0 || x >= width || y >= height)
-        {
-            throw std::runtime_error("Tile is out of map bounds");
-        }
-
-        const long long key = (static_cast<long long>(y) << 32) | static_cast<unsigned int>(x);
-        if (occupied.count(key) != 0)
+        const Location location{.x = x, .y = y};
+        if (occupied.count(location) != 0)
             throw std::runtime_error("Multiple tiles at the same position");
-        occupied.insert(key);
+        occupied.insert(location);
 
         if (tile_is_player(tile))
         {
@@ -139,7 +123,7 @@ internal::Map map_from_json(std::string_view json_text, const bool require_playe
             continue;
         }
 
-        map.grid[y][x] = object_from_tile(tile);
+        map.objects.insert_or_assign(location, object_from_tile(tile));
     }
 
     if (require_player && !map.player.has_value())
@@ -153,22 +137,15 @@ std::string map_to_json(const internal::Map &map)
 {
     json root;
     root["version"] = 1;
-    root["size"] = {{"width", internal::grid_width(map)}, {"height", internal::grid_height(map)}};
     root["resources"] = {{"commits", map.commits_left}, {"undos", map.undos_left}};
 
     json tiles = json::array();
     if (map.player.has_value())
         tiles.push_back(tile_from_player(*map.player));
 
-    for (int y = 0; y < internal::grid_height(map); ++y)
+    for (const auto &[location, object] : map.objects)
     {
-        for (int x = 0; x < internal::grid_width(map); ++x)
-        {
-            const auto &obj = map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)];
-            if (std::holds_alternative<core::Empty>(obj.view()))
-                continue;
-            tiles.push_back(tile_from_object(obj, x, y));
-        }
+        tiles.push_back(tile_from_object(object.view(), location));
     }
 
     root["tiles"] = tiles;

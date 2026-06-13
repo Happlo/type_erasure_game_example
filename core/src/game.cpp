@@ -13,23 +13,65 @@ namespace core
 {
 namespace
 {
-std::string map_to_grid_text(const internal::Map& map)
+struct GridText
 {
+    std::string text;
+    Location origin;
+};
+
+GridText map_to_grid_text(const internal::Map& map)
+{
+    if (map.objects.empty())
+        return {};
+
+    auto first = map.objects.begin();
+    int min_x = first->first.x;
+    int max_x = first->first.x;
+    int min_y = first->first.y;
+    int max_y = first->first.y;
+
+    for (const auto &[location, object] : map.objects)
+    {
+        (void)object;
+        min_x = std::min(min_x, location.x);
+        max_x = std::max(max_x, location.x);
+        min_y = std::min(min_y, location.y);
+        max_y = std::max(max_y, location.y);
+    }
+
+    const int width = max_x - min_x + 1;
+    const int height = max_y - min_y + 1;
     std::string out;
-    const int width = internal::grid_width(map);
-    const int height = internal::grid_height(map);
     out.reserve(static_cast<size_t>(height * (width + 1)));
 
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
-            out.push_back(core::symbol_of(map.grid[static_cast<size_t>(y)][static_cast<size_t>(x)].view()));
+            const auto object = map.objects.find(Location{.x = min_x + x, .y = min_y + y});
+            out.push_back(object == map.objects.end() ? ' ' : object->second.view().symbol);
         }
         if (y + 1 < height) out.push_back('\n');
     }
 
-    return out;
+    return GridText{.text = out, .origin = Location{.x = min_x, .y = min_y}};
+}
+
+GameResult evaluate_map(const internal::Map& map)
+{
+    const GridText grid = map_to_grid_text(map);
+    GameResult result = solution_rules::evaluate_equation(grid.text);
+    if (grid.origin.x == 0 && grid.origin.y == 0)
+        return result;
+
+    std::map<Location, EqualityStatus> shifted;
+    for (const auto &[location, status] : result.equal_sign_status)
+    {
+        shifted[Location{.x = location.x + grid.origin.x, .y = location.y + grid.origin.y}] =
+            status;
+    }
+    result.equal_sign_status = std::move(shifted);
+    return result;
 }
 
 class DefaultGame final : public Game
@@ -58,7 +100,7 @@ public:
         return false;
         }();
 
-        last_result_ = solution_rules::evaluate_equation(map_to_grid_text(internal::current(history_)));
+        last_result_ = evaluate_map(internal::current(history_));
         return last_result_;
     }
 
@@ -69,8 +111,7 @@ public:
 
 private:
     internal::History history_;
-    GameResult last_result_ {
-        solution_rules::evaluate_equation(map_to_grid_text(internal::current(history_)))};
+    GameResult last_result_ {evaluate_map(internal::current(history_))};
 };
 
 }  // namespace

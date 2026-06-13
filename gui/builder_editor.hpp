@@ -27,8 +27,6 @@ struct BuilderEditorState
     std::unique_ptr<core::MapBuilder> map;
     core::Brush brush;
     std::string status{"Ready."};
-    int resize_width{0};
-    int resize_height{0};
     std::array<char, 2> symbol_buffer{brush.symbol, '\0'};
     std::array<char, 256> file_path{};
     std::optional<CellSelection> selected_cell;

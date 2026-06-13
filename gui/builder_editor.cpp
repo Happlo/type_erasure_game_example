@@ -14,13 +14,23 @@ namespace gui
 namespace
 {
 using gui::draw_tile_symbol;
-using gui::tile_fill;
-using gui::tile_outline;
+using gui::empty_tile_fill;
+using gui::object_tile_fill;
+using gui::object_tile_outline;
 
 constexpr ImVec2 kToolsWindowPos{24.0f, 24.0f};
 constexpr ImVec2 kToolsWindowSize{360.0f, 852.0f};
 constexpr ImVec2 kCanvasWindowPos{408.0f, 24.0f};
 constexpr ImVec2 kCanvasWindowSize{1008.0f, 852.0f};
+constexpr int kDefaultViewportWidth = 9;
+constexpr int kDefaultViewportHeight = 7;
+
+struct Viewport
+{
+    core::Location min{.x = 0, .y = 0};
+    int width{kDefaultViewportWidth};
+    int height{kDefaultViewportHeight};
+};
 
 std::string join_chars(const std::vector<char> &chars)
 {
@@ -35,21 +45,30 @@ std::string join_chars(const std::vector<char> &chars)
     return result;
 }
 
-void clamp_size(BuilderEditorState &state)
+Viewport viewport_for(const BuilderEditorState &state)
 {
-    state.resize_width = std::clamp(state.resize_width, 1, 64);
-    state.resize_height = std::clamp(state.resize_height, 1, 64);
-}
-
-void sync_size_from_map(BuilderEditorState &state)
-{
-    state.resize_width = state.map->view().width;
-    state.resize_height = state.map->view().height;
-    if (state.selected_cell.has_value() && (state.selected_cell->x >= state.resize_width ||
-                                            state.selected_cell->y >= state.resize_height))
+    const core::MapView &view = state.map->view();
+    core::Location min{.x = 0, .y = 0};
+    core::Location max{.x = kDefaultViewportWidth - 1, .y = kDefaultViewportHeight - 1};
+    const auto include = [&](const core::Location &location)
     {
-        state.selected_cell.reset();
+        min.x = std::min(min.x, location.x);
+        min.y = std::min(min.y, location.y);
+        max.x = std::max(max.x, location.x);
+        max.y = std::max(max.y, location.y);
+    };
+
+    if (view.player.has_value())
+        include(view.player->location);
+    if (state.selected_cell.has_value())
+        include(core::Location{.x = state.selected_cell->x, .y = state.selected_cell->y});
+    for (const auto &[location, object] : view.objects)
+    {
+        (void)object;
+        include(location);
     }
+
+    return Viewport{.min = min, .width = max.x - min.x + 1, .height = max.y - min.y + 1};
 }
 
 void update_brush_symbol(BuilderEditorState &state)
@@ -71,13 +90,6 @@ bool manipulation_is_push(const core::Object::ManipulationLevel manipulation_lev
 bool manipulation_is_pick(const core::Object::ManipulationLevel manipulation_level)
 {
     return manipulation_level == core::Object::ManipulationLevel::Pick;
-}
-
-core::Object::ManipulationLevel manipulation_from_cell(const core::CellView &cell)
-{
-    if (const auto *object = std::get_if<core::Object>(&cell); object != nullptr)
-        return object->manipulation_level;
-    return core::Object::ManipulationLevel::None;
 }
 
 void apply_brush_to_selected_cell(BuilderEditorState &state)
@@ -106,8 +118,8 @@ void select_cell(BuilderEditorState &state, const int x, const int y)
         return;
     }
 
-    const core::CellView &cell = view.at(x, y);
-    if (std::holds_alternative<core::Empty>(cell))
+    const auto object = view.objects.find(core::Location{.x = x, .y = y});
+    if (object == view.objects.end())
     {
         state.brush.symbol = '*';
         state.brush.manipulation_level = core::Object::ManipulationLevel::None;
@@ -115,8 +127,8 @@ void select_cell(BuilderEditorState &state, const int x, const int y)
         return;
     }
 
-    state.brush.symbol = core::symbol_of(cell);
-    state.brush.manipulation_level = manipulation_from_cell(cell);
+    state.brush.symbol = object->second.symbol;
+    state.brush.manipulation_level = object->second.manipulation_level;
     sync_symbol_buffer(state);
 }
 
@@ -128,17 +140,12 @@ void move_selection(BuilderEditorState &state, const int dx, const int dy)
         return;
     }
 
-    const int next_x = std::clamp(state.selected_cell->x + dx, 0, state.map->view().width - 1);
-    const int next_y = std::clamp(state.selected_cell->y + dy, 0, state.map->view().height - 1);
+    const Viewport viewport = viewport_for(state);
+    const int next_x = std::clamp(state.selected_cell->x + dx, viewport.min.x,
+                                  viewport.min.x + viewport.width - 1);
+    const int next_y = std::clamp(state.selected_cell->y + dy, viewport.min.y,
+                                  viewport.min.y + viewport.height - 1);
     select_cell(state, next_x, next_y);
-}
-
-void resize_map(BuilderEditorState &state)
-{
-    clamp_size(state);
-    state.map->resize(state.resize_width, state.resize_height);
-    sync_size_from_map(state);
-    state.status = "Resized map.";
 }
 
 void load_map(BuilderEditorState &state)
@@ -146,7 +153,6 @@ void load_map(BuilderEditorState &state)
     try
     {
         state.map = core::MapBuilder::load_from_file(state.file_path.data());
-        sync_size_from_map(state);
         state.selected_cell.reset();
         state.status = "Loaded map.";
     }
@@ -197,15 +203,8 @@ void try_map(BuilderEditorState &state)
 
 void draw_brush_preview(const BuilderEditorState &state)
 {
-    const core::CellView preview = [&]() -> core::CellView {
-        if (state.brush.symbol == '^' || state.brush.symbol == 'v' || state.brush.symbol == '<' ||
-            state.brush.symbol == '>')
-        {
-            return core::Empty{};
-        }
-        return core::Object{.symbol = state.brush.symbol,
-                            .manipulation_level = state.brush.manipulation_level};
-    }();
+    const core::Object preview{.symbol = state.brush.symbol,
+                               .manipulation_level = state.brush.manipulation_level};
     const bool preview_is_player = state.brush.symbol == '^' || state.brush.symbol == 'v' ||
                                    state.brush.symbol == '<' || state.brush.symbol == '>';
 
@@ -213,13 +212,15 @@ void draw_brush_preview(const BuilderEditorState &state)
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 cell_max(origin.x + 72.0f, origin.y + 72.0f);
     draw_list->AddRectFilled(origin, cell_max,
-                             preview_is_player ? IM_COL32(236, 177, 79, 255) : tile_fill(preview),
+                             preview_is_player ? IM_COL32(236, 177, 79, 255)
+                                               : object_tile_fill(preview),
                              14.0f);
     draw_list->AddRect(origin, cell_max,
-                       preview_is_player ? IM_COL32(255, 226, 157, 255) : tile_outline(preview),
+                       preview_is_player ? IM_COL32(255, 226, 157, 255)
+                                         : object_tile_outline(preview),
                        14.0f, 0, 3.0f);
     draw_tile_symbol(*draw_list, origin, cell_max,
-                     preview_is_player ? state.brush.symbol : core::symbol_of(preview), 40.0f);
+                     preview_is_player ? state.brush.symbol : preview.symbol, 40.0f);
     ImGui::Dummy(ImVec2(72.0f, 72.0f));
 }
 
@@ -234,13 +235,6 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
     ImGui::Separator();
     ImGui::TextWrapped(
         "Left click selects a cell. Typing commits a symbol. Right click clears and selects.");
-
-    ImGui::Spacing();
-    ImGui::Text("Map size: %d x %d", state.map->view().width, state.map->view().height);
-    ImGui::InputInt("Width", &state.resize_width);
-    ImGui::InputInt("Height", &state.resize_height);
-    if (ImGui::Button("Resize Map", ImVec2(150.0f, 38.0f)))
-        resize_map(state);
 
     ImGui::Spacing();
     int commits_left = state.map->view().commits_left;
@@ -307,25 +301,36 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
     return back_requested;
 }
 
-void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const float tile_size,
-                   const ImVec2 origin, const int x, const int y)
+void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const Viewport &viewport,
+                   const float tile_size, const ImVec2 origin, const int x, const int y)
 {
     const core::MapView &view = state.map->view();
-    const core::CellView &cell = view.at(x, y);
+    const auto object = view.objects.find(core::Location{.x = x, .y = y});
     const bool has_player =
         view.player.has_value() && view.player->location == core::Location{.x = x, .y = y};
-    const ImVec2 cell_min(origin.x + x * tile_size, origin.y + y * tile_size);
+    const int screen_x = x - viewport.min.x;
+    const int screen_y = y - viewport.min.y;
+    const ImVec2 cell_min(origin.x + screen_x * tile_size, origin.y + screen_y * tile_size);
     const ImVec2 cell_max(cell_min.x + tile_size - 4.0f, cell_min.y + tile_size - 4.0f);
     draw_list.AddRectFilled(cell_min, cell_max,
-                            has_player ? IM_COL32(236, 177, 79, 255) : tile_fill(cell), 12.0f);
+                            has_player ? IM_COL32(236, 177, 79, 255)
+                                       : (object == view.objects.end()
+                                              ? empty_tile_fill()
+                                              : object_tile_fill(object->second)),
+                            12.0f);
     const bool selected = state.selected_cell.has_value() && state.selected_cell->x == x &&
                           state.selected_cell->y == y;
     draw_list.AddRect(cell_min, cell_max,
                       selected ? IM_COL32(255, 231, 168, 255)
-                               : (has_player ? IM_COL32(255, 226, 157, 255) : tile_outline(cell)),
+                               : (has_player ? IM_COL32(255, 226, 157, 255)
+                                             : (object == view.objects.end()
+                                                    ? IM_COL32(72, 79, 88, 255)
+                                                    : object_tile_outline(object->second))),
                       12.0f, 0, selected ? 4.0f : 2.0f);
-    draw_tile_symbol(draw_list, cell_min, cell_max,
-                     has_player ? view.player->symbol : core::symbol_of(cell), tile_size * 0.58f);
+    if (has_player || object != view.objects.end())
+        draw_tile_symbol(draw_list, cell_min, cell_max,
+                         has_player ? view.player->symbol : object->second.symbol,
+                         tile_size * 0.58f);
 
     ImGui::SetCursorScreenPos(cell_min);
     ImGui::InvisibleButton(("cell_" + std::to_string(x) + "_" + std::to_string(y)).c_str(),
@@ -339,11 +344,11 @@ void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const float
     }
 }
 
-void draw_map_row(ImDrawList &draw_list, BuilderEditorState &state, const float tile_size,
-                  const ImVec2 origin, const int y)
+void draw_map_row(ImDrawList &draw_list, BuilderEditorState &state, const Viewport &viewport,
+                  const float tile_size, const ImVec2 origin, const int y)
 {
-    for (int x = 0; x < state.map->view().width; ++x)
-        draw_map_tile(draw_list, state, tile_size, origin, x, y);
+    for (int x = viewport.min.x; x < viewport.min.x + viewport.width; ++x)
+        draw_map_tile(draw_list, state, viewport, tile_size, origin, x, y);
 }
 
 void draw_canvas_window(BuilderEditorState &state)
@@ -352,17 +357,17 @@ void draw_canvas_window(BuilderEditorState &state)
     ImGui::SetNextWindowSize(kCanvasWindowSize, ImGuiCond_Always);
     ImGui::Begin("Canvas", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
-    const auto &view = state.map->view();
+    const Viewport viewport = viewport_for(state);
     const float tile_size =
-        std::clamp(560.0f / static_cast<float>(std::max(view.width, view.height)), 34.0f, 72.0f);
+        std::clamp(560.0f / static_cast<float>(std::max(viewport.width, viewport.height)), 34.0f, 72.0f);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
-    const ImVec2 total_size(tile_size * view.width, tile_size * view.height);
+    const ImVec2 total_size(tile_size * viewport.width, tile_size * viewport.height);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     draw_list->AddRectFilled(origin, ImVec2(origin.x + total_size.x, origin.y + total_size.y),
                              IM_COL32(20, 24, 29, 255), 18.0f);
 
-    for (int y = 0; y < view.height; ++y)
-        draw_map_row(*draw_list, state, tile_size, origin, y);
+    for (int y = viewport.min.y; y < viewport.min.y + viewport.height; ++y)
+        draw_map_row(*draw_list, state, viewport, tile_size, origin, y);
 
     ImGui::Dummy(ImVec2(total_size.x, total_size.y));
     ImGui::End();
@@ -417,7 +422,6 @@ void start_builder_editor(BuilderEditorState &state, std::unique_ptr<core::MapBu
     state = BuilderEditorState{};
     state.map = std::move(map);
     std::snprintf(state.file_path.data(), state.file_path.size(), "%s", file_path);
-    sync_size_from_map(state);
     state.status = std::move(status);
 }
 

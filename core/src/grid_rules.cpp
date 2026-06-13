@@ -7,21 +7,21 @@ namespace core::grid_rules
 {
 namespace
 {
-Location Location_in_front(const Location &Location, internal::Facing facing)
+Location location_in_front(const Location &location, internal::Facing facing)
 {
     switch (facing)
     {
     case internal::Facing::North:
-        return {Location.x, Location.y - 1};
+        return {location.x, location.y - 1};
     case internal::Facing::South:
-        return {Location.x, Location.y + 1};
+        return {location.x, location.y + 1};
     case internal::Facing::West:
-        return {Location.x - 1, Location.y};
+        return {location.x - 1, location.y};
     case internal::Facing::East:
-        return {Location.x + 1, Location.y};
+        return {location.x + 1, location.y};
     }
 
-    return Location;
+    return location;
 }
 } // namespace
 
@@ -34,34 +34,23 @@ bool try_move_player(internal::Map &map, int dx, int dy)
         internal::PlayerState::from_delta(dx, dy, map.player->player);
 
     const Location next{player->x + dx, player->y + dy};
-    if (!internal::in_bounds(map, next))
-        return false;
-
-    const internal::TypeErasedObject next_object = map.grid[next.y][next.x];
-    const auto next_view = next_object.view();
-    const auto *next_object_props = std::get_if<core::Object>(&next_view);
-
-    if (std::holds_alternative<core::Empty>(next_view))
+    auto next_object = map.objects.find(next);
+    if (next_object == map.objects.end())
     {
         map.player = moved_player;
         map.player->player.location = core::Location{.x = next.x, .y = next.y};
         return true;
     }
 
-    if (next_object_props == nullptr ||
-        next_object_props->manipulation_level == core::Object::ManipulationLevel::None)
+    if (next_object->second.view().manipulation_level == core::Object::ManipulationLevel::None)
         return false;
 
     const Location pushed{next.x + dx, next.y + dy};
-    if (!internal::in_bounds(map, pushed))
+    if (map.objects.contains(pushed))
         return false;
 
-    const internal::TypeErasedObject pushed_object = map.grid[pushed.y][pushed.x];
-    if (!pushed_object.is<core::Empty>())
-        return false;
-
-    map.grid[pushed.y][pushed.x] = next_object;
-    map.grid[next.y][next.x] = internal::TypeErasedObject(Empty{});
+    map.objects.insert_or_assign(pushed, next_object->second);
+    map.objects.erase(next_object);
     map.player = moved_player;
     map.player->player.location = core::Location{.x = next.x, .y = next.y};
     return true;
@@ -73,18 +62,15 @@ bool try_pick_item(internal::Map &map)
     if (!player.has_value() || !map.player.has_value())
         return false;
     internal::PlayerState player_state = *map.player;
-    const Location front = Location_in_front(*player, player_state.facing);
-    if (!internal::in_bounds(map, front))
+    const Location front = location_in_front(*player, player_state.facing);
+    auto item = map.objects.find(front);
+    if (item == map.objects.end() ||
+        item->second.view().manipulation_level != core::Object::ManipulationLevel::Pick)
         return false;
 
-    const core::CellView front_view = map.grid[front.y][front.x].view();
-    const auto *item = std::get_if<core::Object>(&front_view);
-    if (item == nullptr || item->manipulation_level != core::Object::ManipulationLevel::Pick)
-        return false;
-
-    player_state.player.inventory.push_back(*item);
+    player_state.player.inventory.push_back(item->second.view());
     map.player = player_state;
-    map.grid[front.y][front.x] = internal::TypeErasedObject(Empty{});
+    map.objects.erase(item);
     return true;
 }
 
@@ -97,16 +83,14 @@ bool try_drop_item(internal::Map &map)
     if (player_state.player.inventory.empty())
         return false;
 
-    const Location front = Location_in_front(*player, player_state.facing);
-    if (!internal::in_bounds(map, front))
-        return false;
-    if (!map.grid[front.y][front.x].is<core::Empty>())
+    const Location front = location_in_front(*player, player_state.facing);
+    if (map.objects.contains(front))
         return false;
 
     const core::Object item = player_state.player.inventory.back();
     player_state.player.inventory.pop_back();
     map.player = player_state;
-    map.grid[front.y][front.x] = internal::TypeErasedObject(item);
+    map.objects.insert_or_assign(front, item);
     return true;
 }
 
