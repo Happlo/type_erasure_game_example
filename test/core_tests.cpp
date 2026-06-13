@@ -19,6 +19,14 @@ char symbol_at(const core::MapView &view, const int x, const int y)
     return object == view.objects.end() ? ' ' : object->second.symbol;
 }
 
+core::Location location(const int x, const int y) { return core::Location{.x = x, .y = y}; }
+
+core::Object object(const char symbol,
+                    const ManipulationLevel manipulation_level = ManipulationLevel::None)
+{
+    return core::Object{.symbol = symbol, .manipulation_level = manipulation_level};
+}
+
 class CurrentPathGuard
 {
   public:
@@ -57,19 +65,13 @@ std::unique_ptr<core::Game> create_reference_game()
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(6)
         .set_undos_left(6)
-        .apply_brush(0, 6, core::Brush{.symbol = 'v'})
-        .apply_brush(2, 1,
-                     core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(4, 1,
-                     core::Brush{.symbol = '=', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(4, 4,
-                     core::Brush{.symbol = '1', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(7, 5,
-                     core::Brush{.symbol = '2', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(6, 3,
-                     core::Brush{.symbol = '3', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(2, 5,
-                     core::Brush{.symbol = '4', .manipulation_level = ManipulationLevel::Push});
+        .add_object(location(0, 6), object('v'))
+        .add_object(location(2, 1), object('+', ManipulationLevel::Push))
+        .add_object(location(4, 1), object('=', ManipulationLevel::Push))
+        .add_object(location(4, 4), object('1', ManipulationLevel::Push))
+        .add_object(location(7, 5), object('2', ManipulationLevel::Push))
+        .add_object(location(6, 3), object('3', ManipulationLevel::Push))
+        .add_object(location(2, 5), object('4', ManipulationLevel::Push));
     return map->create_game();
 }
 } // namespace
@@ -140,9 +142,8 @@ TEST(CoreGameTest, pickable_item_can_be_picked_up)
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(2)
         .set_undos_left(1)
-        .apply_brush(1, 1, core::Brush{.symbol = '>'})
-        .apply_brush(2, 1,
-                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
+        .add_object(location(1, 1), object('>'))
+        .add_object(location(2, 1), object('*', ManipulationLevel::Pick));
     std::unique_ptr<core::Game> game = map->create_game();
 
     // When
@@ -157,9 +158,8 @@ TEST(CoreGameTest, GivenPickableItemWhenWalkingIntoItThenItCanAlsoBePushed)
 {
     // Given
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
-    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
-        .apply_brush(1, 0,
-                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('*', ManipulationLevel::Pick));
     std::unique_ptr<core::Game> game = map->create_game();
 
     // When
@@ -179,11 +179,9 @@ TEST(CoreGameTest, GivenPickedItemsWhenViewingMapThenPlayerInventoryIsIncludedIn
 {
     // Given
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
-    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
-        .apply_brush(1, 0,
-                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick})
-        .apply_brush(2, 0,
-                     core::Brush{.symbol = '!', .manipulation_level = ManipulationLevel::Pick});
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('*', ManipulationLevel::Pick))
+        .add_object(location(2, 0), object('!', ManipulationLevel::Pick));
     std::unique_ptr<core::Game> game = map->create_game();
 
     // When
@@ -203,11 +201,9 @@ TEST(CoreGameTest, GivenNonPickableOrBlockedFrontCellWhenPickingOrDroppingThenAc
 {
     // Given
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
-    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
-        .apply_brush(1, 0,
-                     core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(2, 0,
-                     core::Brush{.symbol = '*', .manipulation_level = ManipulationLevel::Pick});
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('+', ManipulationLevel::Push))
+        .add_object(location(2, 0), object('*', ManipulationLevel::Pick));
     std::unique_ptr<core::Game> game = map->create_game();
 
     // When / Then
@@ -234,13 +230,10 @@ TEST(CoreGameTest, GivenMapBuilderWhenCreatingGameThenGameUsesBuilderMap)
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(2)
         .set_undos_left(1)
-        .apply_brush(0, 2, core::Brush{.symbol = '>'})
-        .apply_brush(1, 2,
-                     core::Brush{.symbol = '4', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(2, 1,
-                     core::Brush{.symbol = '+', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(3, 1,
-                     core::Brush{.symbol = '=', .manipulation_level = ManipulationLevel::Push});
+        .add_object(location(0, 2), object('>'))
+        .add_object(location(1, 2), object('4', ManipulationLevel::Push))
+        .add_object(location(2, 1), object('+', ManipulationLevel::Push))
+        .add_object(location(3, 1), object('=', ManipulationLevel::Push));
 
     // When
     std::unique_ptr<core::Game> game = map->create_game();
@@ -266,10 +259,9 @@ TEST(CoreGameTest, GivenMapBuilderWhenSavingAndLoadingThenMapIsPreserved)
     std::unique_ptr<core::MapBuilder> original = core::MapBuilder::create();
     original->set_commits_left(3)
         .set_undos_left(7)
-        .apply_brush(0, 2, core::Brush{.symbol = '^'})
-        .apply_brush(1, 2,
-                     core::Brush{.symbol = '2', .manipulation_level = ManipulationLevel::Push})
-        .apply_brush(1, 1, core::Brush{.symbol = '*'});
+        .add_object(location(0, 2), object('^'))
+        .add_object(location(1, 2), object('2', ManipulationLevel::Push))
+        .add_object(location(1, 1), object('*'));
 
     // When
     original->save_to_file(path);
@@ -332,10 +324,9 @@ TEST(LoginViewTest, GivenMapsDirectoryWhenSelectingMapThenGameLoadsFromSelectedM
     const std::filesystem::path root = make_login_test_root();
     CurrentPathGuard current_path(root);
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
-    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
-        .apply_brush(1, 0, core::Brush{.symbol = '='})
-        .apply_brush(2, 0,
-                     core::Brush{.symbol = '0', .manipulation_level = ManipulationLevel::Push});
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('='))
+        .add_object(location(2, 0), object('0', ManipulationLevel::Push));
     map->save_to_file(root / "maps" / "zero.json");
     std::unique_ptr<core::LoginView> login = core::LoginView::create();
     core::User &user = login->create_user("carol");
@@ -364,10 +355,9 @@ TEST(LoginViewTest, GivenUserCreatesAndSavesMapThenMapIsStoredUnderUserDirectory
     std::unique_ptr<core::LoginView> login = core::LoginView::create();
     core::User &user = login->create_user("eve");
     std::unique_ptr<core::MapBuilder> map = user.create_new_map();
-    map->apply_brush(0, 0, core::Brush{.symbol = '>'})
-        .apply_brush(1, 0, core::Brush{.symbol = '='})
-        .apply_brush(2, 0,
-                     core::Brush{.symbol = '0', .manipulation_level = ManipulationLevel::Push});
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('='))
+        .add_object(location(2, 0), object('0', ManipulationLevel::Push));
 
     // When
     map->save_to_file("custom.json");
@@ -394,10 +384,10 @@ TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucce
     std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
     map->set_commits_left(0)
         .set_undos_left(0)
-        .clear_cell(0, 0)
-        .apply_brush(1, 0, core::Brush{.symbol = '1'})
-        .apply_brush(2, 0, core::Brush{.symbol = '+'})
-        .apply_brush(3, 0, core::Brush{.symbol = '1'});
+        .clear_cell(location(0, 0))
+        .add_object(location(1, 0), object('1'))
+        .add_object(location(2, 0), object('+'))
+        .add_object(location(3, 0), object('1'));
     map->save_to_file(path);
 
     // When

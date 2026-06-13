@@ -3,7 +3,6 @@
 #include "game_factory.hpp"
 #include "game_model.hpp"
 #include "map_io.hpp"
-#include "object.hpp"
 #include "player.hpp"
 #include "solution_rules.hpp"
 
@@ -100,43 +99,28 @@ class DefaultMapBuilder final : public MapBuilder
         return *this;
     }
 
-    MapBuilder &apply_brush(const int x, const int y, const Brush &brush) override
+    MapBuilder &add_object(const Location &location, const Object &object) override
     {
-        if (is_player_symbol(brush.symbol))
+        if (is_player_symbol(object.symbol))
         {
             map_.player = internal::PlayerState{
-                .player = core::Player{.location = core::Location{.x = x, .y = y}},
-                .facing = player_facing_from_symbol(brush.symbol)};
-            map_.objects.erase(core::Location{.x = x, .y = y});
+                .player = core::Player{.location = location},
+                .facing = player_facing_from_symbol(object.symbol)};
+            map_.objects.erase(location);
             return *this;
         }
 
-        if (map_.player.has_value() &&
-            map_.player->player.location == core::Location{.x = x, .y = y})
+        if (map_.player.has_value() && map_.player->player.location == location)
             map_.player = std::nullopt;
 
-        if ('0' <= brush.symbol && brush.symbol <= '9')
-        {
-            map_.objects.insert_or_assign(
-                core::Location{.x = x, .y = y},
-                MakeObject(brush.symbol - '0')
-                    .with_manipulation_level(brush.manipulation_level)
-                    .build());
-        }
-        else
-        {
-            map_.objects.insert_or_assign(
-                core::Location{.x = x, .y = y},
-                MakeObject(brush.symbol).with_manipulation_level(brush.manipulation_level).build());
-        }
+        map_.objects.insert_or_assign(location, object);
         return *this;
     }
 
-    MapBuilder &clear_cell(const int x, const int y) override
+    MapBuilder &clear_cell(const Location &location) override
     {
-        map_.objects.erase(core::Location{.x = x, .y = y});
-        if (map_.player.has_value() &&
-            map_.player->player.location == core::Location{.x = x, .y = y})
+        map_.objects.erase(location);
+        if (map_.player.has_value() && map_.player->player.location == location)
             map_.player = std::nullopt;
         return *this;
     }

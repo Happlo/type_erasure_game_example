@@ -25,9 +25,9 @@ struct BuilderEditorState
     };
 
     std::unique_ptr<core::MapBuilder> map;
-    core::Brush brush;
+    core::Object object{.symbol = '*'};
     std::string status{"Ready."};
-    std::array<char, 2> symbol_buffer{brush.symbol, '\0'};
+    std::array<char, 2> symbol_buffer{object.symbol, '\0'};
     std::array<char, 256> file_path{};
     std::optional<CellSelection> selected_cell;
     BuilderMode mode{BuilderMode::Edit};

@@ -24,7 +24,7 @@ class User
     virtual const std::string &username() const = 0;
     virtual const std::vector<MapEntry> &solved_maps() const = 0;
     virtual const std::vector<MapEntry> &available_maps() const = 0;
-    virtual std::unique_ptr<Game> select_map(const std::string &map_id) = 0;
+    virtual std::unique_ptr<Game> select_map(std::string map_id) = 0;
     virtual std::unique_ptr<MapBuilder> create_new_map() const = 0;
 };
 

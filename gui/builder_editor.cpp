@@ -50,8 +50,7 @@ Viewport viewport_for(const BuilderEditorState &state)
     const core::MapView &view = state.map->view();
     core::Location min{.x = 0, .y = 0};
     core::Location max{.x = kDefaultViewportWidth - 1, .y = kDefaultViewportHeight - 1};
-    const auto include = [&](const core::Location &location)
-    {
+    const auto include = [&](const core::Location &location) {
         min.x = std::min(min.x, location.x);
         min.y = std::min(min.y, location.y);
         max.x = std::max(max.x, location.x);
@@ -71,14 +70,14 @@ Viewport viewport_for(const BuilderEditorState &state)
     return Viewport{.min = min, .width = max.x - min.x + 1, .height = max.y - min.y + 1};
 }
 
-void update_brush_symbol(BuilderEditorState &state)
+void update_object_symbol(BuilderEditorState &state)
 {
-    state.brush.symbol = state.symbol_buffer[0] == '\0' ? '*' : state.symbol_buffer[0];
+    state.object.symbol = state.symbol_buffer[0] == '\0' ? '*' : state.symbol_buffer[0];
 }
 
 void sync_symbol_buffer(BuilderEditorState &state)
 {
-    state.symbol_buffer[0] = state.brush.symbol;
+    state.symbol_buffer[0] = state.object.symbol;
     state.symbol_buffer[1] = '\0';
 }
 
@@ -92,18 +91,19 @@ bool manipulation_is_pick(const core::Object::ManipulationLevel manipulation_lev
     return manipulation_level == core::Object::ManipulationLevel::Pick;
 }
 
-void apply_brush_to_selected_cell(BuilderEditorState &state)
+void add_object_to_selected_cell(BuilderEditorState &state)
 {
     if (!state.selected_cell.has_value())
         return;
-    state.map->apply_brush(state.selected_cell->x, state.selected_cell->y, state.brush);
+    state.map->add_object(
+        core::Location{.x = state.selected_cell->x, .y = state.selected_cell->y}, state.object);
 }
 
 void clear_selected_cell(BuilderEditorState &state)
 {
     if (!state.selected_cell.has_value())
         return;
-    state.map->clear_cell(state.selected_cell->x, state.selected_cell->y);
+    state.map->clear_cell(core::Location{.x = state.selected_cell->x, .y = state.selected_cell->y});
 }
 
 void select_cell(BuilderEditorState &state, const int x, const int y)
@@ -112,8 +112,8 @@ void select_cell(BuilderEditorState &state, const int x, const int y)
     const core::MapView &view = state.map->view();
     if (view.player.has_value() && view.player->location == core::Location{.x = x, .y = y})
     {
-        state.brush.symbol = view.player->symbol;
-        state.brush.manipulation_level = core::Object::ManipulationLevel::None;
+        state.object.symbol = view.player->symbol;
+        state.object.manipulation_level = core::Object::ManipulationLevel::None;
         sync_symbol_buffer(state);
         return;
     }
@@ -121,14 +121,13 @@ void select_cell(BuilderEditorState &state, const int x, const int y)
     const auto object = view.objects.find(core::Location{.x = x, .y = y});
     if (object == view.objects.end())
     {
-        state.brush.symbol = '*';
-        state.brush.manipulation_level = core::Object::ManipulationLevel::None;
+        state.object.symbol = '*';
+        state.object.manipulation_level = core::Object::ManipulationLevel::None;
         sync_symbol_buffer(state);
         return;
     }
 
-    state.brush.symbol = object->second.symbol;
-    state.brush.manipulation_level = object->second.manipulation_level;
+    state.object = object->second;
     sync_symbol_buffer(state);
 }
 
@@ -201,26 +200,23 @@ void try_map(BuilderEditorState &state)
     }
 }
 
-void draw_brush_preview(const BuilderEditorState &state)
+void draw_object_preview(const BuilderEditorState &state)
 {
-    const core::Object preview{.symbol = state.brush.symbol,
-                               .manipulation_level = state.brush.manipulation_level};
-    const bool preview_is_player = state.brush.symbol == '^' || state.brush.symbol == 'v' ||
-                                   state.brush.symbol == '<' || state.brush.symbol == '>';
+    const bool preview_is_player = state.object.symbol == '^' || state.object.symbol == 'v' ||
+                                   state.object.symbol == '<' || state.object.symbol == '>';
 
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 cell_max(origin.x + 72.0f, origin.y + 72.0f);
-    draw_list->AddRectFilled(origin, cell_max,
-                             preview_is_player ? IM_COL32(236, 177, 79, 255)
-                                               : object_tile_fill(preview),
-                             14.0f);
+    draw_list->AddRectFilled(
+        origin, cell_max,
+        preview_is_player ? IM_COL32(236, 177, 79, 255) : object_tile_fill(state.object), 14.0f);
     draw_list->AddRect(origin, cell_max,
                        preview_is_player ? IM_COL32(255, 226, 157, 255)
-                                         : object_tile_outline(preview),
+                                         : object_tile_outline(state.object),
                        14.0f, 0, 3.0f);
     draw_tile_symbol(*draw_list, origin, cell_max,
-                     preview_is_player ? state.brush.symbol : preview.symbol, 40.0f);
+                     preview_is_player ? state.object.symbol : state.object.symbol, 40.0f);
     ImGui::Dummy(ImVec2(72.0f, 72.0f));
 }
 
@@ -246,23 +242,23 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
 
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::TextUnformatted("Brush");
-    ImGui::Text("Symbol: %c", state.brush.symbol);
-    bool pushable = manipulation_is_push(state.brush.manipulation_level);
-    bool pickable = manipulation_is_pick(state.brush.manipulation_level);
+    ImGui::TextUnformatted("Object");
+    ImGui::Text("Symbol: %c", state.object.symbol);
+    bool pushable = manipulation_is_push(state.object.manipulation_level);
+    bool pickable = manipulation_is_pick(state.object.manipulation_level);
     if (ImGui::Checkbox("Pushable", &pushable))
     {
-        state.brush.manipulation_level = pushable ? core::Object::ManipulationLevel::Push
-                                                  : core::Object::ManipulationLevel::None;
-        apply_brush_to_selected_cell(state);
+        state.object.manipulation_level = pushable ? core::Object::ManipulationLevel::Push
+                                                   : core::Object::ManipulationLevel::None;
+        add_object_to_selected_cell(state);
     }
     if (ImGui::Checkbox("Pickable", &pickable))
     {
-        state.brush.manipulation_level = pickable ? core::Object::ManipulationLevel::Pick
-                                                  : core::Object::ManipulationLevel::None;
-        apply_brush_to_selected_cell(state);
+        state.object.manipulation_level = pickable ? core::Object::ManipulationLevel::Pick
+                                                   : core::Object::ManipulationLevel::None;
+        add_object_to_selected_cell(state);
     }
-    draw_brush_preview(state);
+    draw_object_preview(state);
     if (state.selected_cell.has_value())
         ImGui::Text("Selected: (%d, %d)", state.selected_cell->x, state.selected_cell->y);
     else
@@ -312,12 +308,12 @@ void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const Viewp
     const int screen_y = y - viewport.min.y;
     const ImVec2 cell_min(origin.x + screen_x * tile_size, origin.y + screen_y * tile_size);
     const ImVec2 cell_max(cell_min.x + tile_size - 4.0f, cell_min.y + tile_size - 4.0f);
-    draw_list.AddRectFilled(cell_min, cell_max,
-                            has_player ? IM_COL32(236, 177, 79, 255)
-                                       : (object == view.objects.end()
-                                              ? empty_tile_fill()
-                                              : object_tile_fill(object->second)),
-                            12.0f);
+    draw_list.AddRectFilled(
+        cell_min, cell_max,
+        has_player
+            ? IM_COL32(236, 177, 79, 255)
+            : (object == view.objects.end() ? empty_tile_fill() : object_tile_fill(object->second)),
+        12.0f);
     const bool selected = state.selected_cell.has_value() && state.selected_cell->x == x &&
                           state.selected_cell->y == y;
     draw_list.AddRect(cell_min, cell_max,
@@ -340,7 +336,7 @@ void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const Viewp
     if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
     {
         select_cell(state, x, y);
-        state.map->clear_cell(x, y);
+        state.map->clear_cell(core::Location{.x = x, .y = y});
     }
 }
 
@@ -358,8 +354,8 @@ void draw_canvas_window(BuilderEditorState &state)
     ImGui::Begin("Canvas", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     const Viewport viewport = viewport_for(state);
-    const float tile_size =
-        std::clamp(560.0f / static_cast<float>(std::max(viewport.width, viewport.height)), 34.0f, 72.0f);
+    const float tile_size = std::clamp(
+        560.0f / static_cast<float>(std::max(viewport.width, viewport.height)), 34.0f, 72.0f);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 total_size(tile_size * viewport.width, tile_size * viewport.height);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -447,7 +443,7 @@ void handle_builder_editor_keyboard(BuilderEditorState &state)
         return;
     }
 
-    update_brush_symbol(state);
+    update_object_symbol(state);
 
     ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureKeyboard)
@@ -471,9 +467,9 @@ void handle_builder_editor_keyboard(BuilderEditorState &state)
             continue;
         if (!std::isprint(static_cast<unsigned char>(character)))
             continue;
-        state.brush.symbol = static_cast<char>(character);
+        state.object.symbol = static_cast<char>(character);
         sync_symbol_buffer(state);
-        apply_brush_to_selected_cell(state);
+        add_object_to_selected_cell(state);
         move_selection(state, 1, 0);
     }
 

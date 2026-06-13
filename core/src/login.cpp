@@ -216,7 +216,7 @@ class DefaultUser final : public User
         return available_maps_;
     }
 
-    std::unique_ptr<Game> select_map(const std::string &map_id) override
+    std::unique_ptr<Game> select_map(std::string map_id) override
     {
         available_maps_ = load_available_maps(username_);
         if (!contains_map_id(available_maps_, map_id))

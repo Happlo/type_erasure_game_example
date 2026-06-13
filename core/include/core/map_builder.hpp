@@ -10,11 +10,6 @@
 
 namespace core
 {
-struct Brush
-{
-    char symbol{'*'};
-    Object::ManipulationLevel manipulation_level{Object::ManipulationLevel::None};
-};
 
 class MapBuilder
 {
@@ -26,16 +21,15 @@ class MapBuilder
     virtual MapBuilder &set_commits_left(int commits_left) = 0;
     virtual MapBuilder &set_undos_left(int undos_left) = 0;
 
-    virtual MapBuilder &apply_brush(int x, int y, const Brush &brush) = 0;
-    virtual MapBuilder &clear_cell(int x, int y) = 0;
+    virtual MapBuilder &add_object(Location const &location, Object const &object) = 0;
+    virtual MapBuilder &clear_cell(Location const &location) = 0;
 
     virtual std::unique_ptr<Game> create_game() const = 0;
     virtual void save_to_file(const std::filesystem::path &path) const = 0;
 
-    static std::unique_ptr<MapBuilder> create_default(
-        const std::filesystem::path &save_directory = {});
-    static std::unique_ptr<MapBuilder> create(
-        const std::filesystem::path &save_directory = {});
+    static std::unique_ptr<MapBuilder>
+    create_default(const std::filesystem::path &save_directory = {});
+    static std::unique_ptr<MapBuilder> create(const std::filesystem::path &save_directory = {});
     static std::unique_ptr<MapBuilder> load_from_file(const std::filesystem::path &path);
     static const std::vector<char> &solver_operators();
     static const std::vector<char> &equation_delimiters();
