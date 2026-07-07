@@ -4,7 +4,6 @@
 #include <array>
 #include <cfloat>
 #include <cstdio>
-#include <utility>
 
 namespace gui
 {
@@ -98,31 +97,29 @@ int display_height(const DisplayBounds& bounds) { return bounds.max.y - bounds.m
 
 constexpr ImVec2 kMoveButtonSize{96.0f, 36.0f};
 constexpr ImVec2 kActionButtonSize{150.0f, 38.0f};
-constexpr int kMaxRenderedTilesPerAxis = 15;
+constexpr int kVisibleTilesPerAxis = 13;
+constexpr int kVisibleTileRadius = kVisibleTilesPerAxis / 2;
 
-std::pair<int, int> clamp_axis(const int min_value, const int max_value, const int focus)
+static_assert(kVisibleTilesPerAxis % 2 == 1);
+
+DisplayBounds fixed_display_bounds_around(const core::Location& center)
 {
-    const int size = max_value - min_value + 1;
-    if (size <= kMaxRenderedTilesPerAxis)
-        return {min_value, max_value};
-
-    int start = focus - kMaxRenderedTilesPerAxis / 2;
-    start = std::max(start, min_value);
-    start = std::min(start, max_value - kMaxRenderedTilesPerAxis + 1);
-    return {start, start + kMaxRenderedTilesPerAxis - 1};
+    return DisplayBounds{
+        .min = core::Location{.x = center.x - kVisibleTileRadius,
+                              .y = center.y - kVisibleTileRadius},
+        .max = core::Location{.x = center.x + kVisibleTileRadius,
+                              .y = center.y + kVisibleTileRadius}};
 }
 
-DisplayBounds limit_display_bounds(const DisplayBounds& bounds, const core::MapView& view)
+DisplayBounds visible_display_bounds(const core::MapView& view)
 {
-    if (!view.player.has_value())
-        return bounds;
+    if (view.player.has_value())
+        return fixed_display_bounds_around(view.player->location);
 
-    const auto [min_x, max_x] =
-        clamp_axis(bounds.min.x, bounds.max.x, view.player->location.x);
-    const auto [min_y, max_y] =
-        clamp_axis(bounds.min.y, bounds.max.y, view.player->location.y);
-    return DisplayBounds{.min = core::Location{.x = min_x, .y = min_y},
-                         .max = core::Location{.x = max_x, .y = max_y}};
+    const DisplayBounds bounds = display_bounds(view);
+    const core::Location center{.x = (bounds.min.x + bounds.max.x) / 2,
+                                .y = (bounds.min.y + bounds.max.y) / 2};
+    return fixed_display_bounds_around(center);
 }
 }  // namespace
 
@@ -502,7 +499,7 @@ void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const
 void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result)
 {
     const bool solved = result.has_value() && game_is_solved(*result);
-    const DisplayBounds bounds = limit_display_bounds(display_bounds(view), view);
+    const DisplayBounds bounds = visible_display_bounds(view);
     const int width = display_width(bounds);
     const int height = display_height(bounds);
     const float tile_size =
