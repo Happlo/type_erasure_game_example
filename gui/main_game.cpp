@@ -192,7 +192,9 @@ void draw_map_buttons(AppState &app)
 
     for (const auto &map : maps)
     {
-        if (ImGui::Button(map.display_name.c_str(), ImVec2(220.0f, 38.0f)))
+        const std::string label =
+            (map.display_name.empty() ? "(unnamed map)" : map.display_name) + "###map_" + map.map_id;
+        if (ImGui::Button(label.c_str(), ImVec2(220.0f, 38.0f)))
             start_selected_map(app, map.map_id);
     }
 }
