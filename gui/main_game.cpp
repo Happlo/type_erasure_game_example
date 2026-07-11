@@ -39,12 +39,14 @@ struct AppState
     GamePlayState play;
     gui::BuilderEditorState builder;
     std::array<char, 128> username_input{};
+    bool should_focus_username{true};
 };
 
 void return_to_login(AppState &app)
 {
     gui::clear_game(app.play, "Choose a map to start a game.");
     gui::clear_builder_editor(app.builder);
+    app.should_focus_username = true;
 }
 
 void start_selected_map(AppState &app, const std::string &map_id)
@@ -214,9 +216,15 @@ void draw_login_window(AppState &app)
     ImGui::Separator();
     ImGui::TextWrapped("Create a user or log in, then choose a map to start a game.");
     
-    ImGui::SetKeyboardFocusHere();
+    if (app.should_focus_username && app.current_user == nullptr &&
+        !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        ImGui::SetKeyboardFocusHere();
+    }
     if (ImGui::InputText("Username", app.username_input.data(), app.username_input.size(), ImGuiInputTextFlags_EnterReturnsTrue))
         login_existing_user(app);
+    if (ImGui::IsItemActive())
+        app.should_focus_username = false;
 
     if (ImGui::Button("Log In", gui::scaled(ImVec2(140.0f, 40.0f))))
         login_existing_user(app);
