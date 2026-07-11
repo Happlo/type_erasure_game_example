@@ -41,34 +41,12 @@ std::optional<int> parse_term(std::string_view text, size_t &pos,
 std::optional<int> parse_expression(std::string_view text, size_t &pos,
                                     const std::unordered_map<char, int> &variables);
 
-std::optional<int> parse_term(std::string_view text, size_t &pos,
-                              const std::unordered_map<char, int> &variables)
+std::optional<int> parse_factor(std::string_view text, size_t &pos,
+                                const std::unordered_map<char, int> &variables)
 {
     int value = 0;
     if (parse_number(text, pos, value))
-    {
-        while (pos < text.size() && (text[pos] == '*' || text[pos] == '/'))
-        {
-            const char op = text[pos];
-            ++pos;
-
-            int rhs = 0;
-            if (!parse_number(text, pos, rhs))
-                return std::nullopt;
-
-            if (op == '*')
-            {
-                value *= rhs;
-                continue;
-            }
-
-            if (rhs == 0 || (value % rhs) != 0)
-                return std::nullopt;
-            value /= rhs;
-        }
-
         return value;
-    }
 
     if (pos < text.size() && is_assignable_symbol(text[pos]))
     {
@@ -82,6 +60,36 @@ std::optional<int> parse_term(std::string_view text, size_t &pos,
     }
 
     return std::nullopt;
+}
+
+std::optional<int> parse_term(std::string_view text, size_t &pos,
+                              const std::unordered_map<char, int> &variables)
+{
+    std::optional<int> value = parse_factor(text, pos, variables);
+    if (!value.has_value())
+        return std::nullopt;
+
+    while (pos < text.size() && (text[pos] == '*' || text[pos] == '/'))
+    {
+        const char op = text[pos];
+        ++pos;
+
+        const std::optional<int> rhs = parse_factor(text, pos, variables);
+        if (!rhs.has_value())
+            return std::nullopt;
+
+        if (op == '*')
+        {
+            *value *= *rhs;
+            continue;
+        }
+
+        if (*rhs == 0 || (*value % *rhs) != 0)
+            return std::nullopt;
+        *value /= *rhs;
+    }
+
+    return value;
 }
 
 std::optional<int> parse_expression(std::string_view text, size_t &pos,
