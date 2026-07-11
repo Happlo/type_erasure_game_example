@@ -111,9 +111,11 @@ void handle_keyboard(AppState &app)
     if (gui::builder_editor_active(app.builder))
         gui::handle_builder_editor_keyboard(app.builder);
     else
+    {
         gui::handle_game_keyboard(app.play);
-    if (ImGui::IsKeyPressed(ImGuiKey_R, false))
-        return_to_login(app);
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+            return_to_login(app);
+    }
 }
 
 void draw_control_window(AppState &app, const core::MapView &view)
@@ -163,19 +165,6 @@ void draw_highscore_rows(const std::vector<core::HighscoreEntry> &highscores)
     }
 }
 
-void draw_solved_map_rows(const core::User &user)
-{
-    const auto &solved_maps = user.solved_maps();
-    if (solved_maps.empty())
-    {
-        ImGui::TextDisabled("No solved maps yet.");
-        return;
-    }
-
-    for (const auto &map : solved_maps)
-        ImGui::BulletText("%s", map.display_name.c_str());
-}
-
 void draw_map_buttons(AppState &app)
 {
     if (app.current_user == nullptr)
@@ -185,6 +174,7 @@ void draw_map_buttons(AppState &app)
     }
 
     const auto &maps = app.current_user->available_maps();
+    const auto &solved_maps = app.current_user->solved_maps();
     if (maps.empty())
     {
         ImGui::TextDisabled("No maps found in maps/.");
@@ -193,10 +183,24 @@ void draw_map_buttons(AppState &app)
 
     for (const auto &map : maps)
     {
+        // Check if this map is in the solved maps list
+        const bool is_solved = std::any_of(solved_maps.begin(), solved_maps.end(),
+                                           [&map](const core::MapEntry &solved) {
+                                               return solved.map_id == map.map_id;
+                                           });
+
+        // Change button color if solved
+        if (is_solved)
+            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(76, 175, 80, 255));         // Green
+        else
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_Button));
+
         const std::string label =
             (map.display_name.empty() ? "(unnamed map)" : map.display_name) + "###map_" + map.map_id;
         if (ImGui::Button(label.c_str(), gui::scaled(ImVec2(220.0f, 38.0f))))
             start_selected_map(app, map.map_id);
+
+        ImGui::PopStyleColor();
     }
 }
 
@@ -232,14 +236,6 @@ void draw_login_window(AppState &app)
         ImGui::Spacing();
     }
     draw_map_buttons(app);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextUnformatted("Solved Maps");
-    if (app.current_user != nullptr)
-        draw_solved_map_rows(*app.current_user);
-    if (app.current_user == nullptr)
-        ImGui::TextDisabled("No user selected.");
 
     ImGui::End();
 }
