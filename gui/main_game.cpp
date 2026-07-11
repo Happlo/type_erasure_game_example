@@ -213,7 +213,10 @@ void draw_login_window(AppState &app)
     ImGui::TextUnformatted("Type Erasure");
     ImGui::Separator();
     ImGui::TextWrapped("Create a user or log in, then choose a map to start a game.");
-    ImGui::InputText("Username", app.username_input.data(), app.username_input.size());
+    
+    ImGui::SetKeyboardFocusHere();
+    if (ImGui::InputText("Username", app.username_input.data(), app.username_input.size(), ImGuiInputTextFlags_EnterReturnsTrue))
+        login_existing_user(app);
 
     if (ImGui::Button("Log In", gui::scaled(ImVec2(140.0f, 40.0f))))
         login_existing_user(app);
