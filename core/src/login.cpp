@@ -64,10 +64,12 @@ MapEntry make_map_entry(const fs::directory_entry &entry)
     return MapEntry{map_id, map_id};
 }
 
-MapEntry make_user_map_entry(const std::string &username, const fs::directory_entry &entry)
+MapEntry make_user_map_entry(const std::string &username, const fs::directory_entry &entry,
+                             const bool current_user)
 {
-    const std::string display_name = entry.path().stem().string();
-    return MapEntry{username + "/" + display_name, display_name};
+    const std::string map_name = entry.path().stem().string();
+    const std::string display_name = current_user ? map_name : username + "/" + map_name;
+    return MapEntry{username + "/" + map_name, display_name};
 }
 
 bool is_json_file(const fs::directory_entry &entry)
@@ -93,7 +95,8 @@ void append_json_maps_from_directory(std::vector<MapEntry> &maps, const fs::path
     }
 }
 
-void append_user_maps_from_directory(std::vector<MapEntry> &maps, const std::string &username)
+void append_user_maps_from_directory(std::vector<MapEntry> &maps, const std::string &username,
+                                     const bool current_user)
 {
     const fs::path directory = user_maps_directory(username);
     if (!fs::exists(directory))
@@ -102,7 +105,24 @@ void append_user_maps_from_directory(std::vector<MapEntry> &maps, const std::str
     for (const fs::directory_entry &entry : fs::directory_iterator(directory))
     {
         if (is_json_file(entry))
-            maps.push_back(make_user_map_entry(username, entry));
+            maps.push_back(make_user_map_entry(username, entry, current_user));
+    }
+}
+
+void append_all_user_maps_from_directory(std::vector<MapEntry> &maps,
+                                         const std::string &current_username)
+{
+    const fs::path directory = maps_directory();
+    if (!fs::exists(directory))
+        return;
+
+    for (const fs::directory_entry &entry : fs::directory_iterator(directory))
+    {
+        if (!entry.is_directory())
+            continue;
+
+        const std::string username = entry.path().filename().string();
+        append_user_maps_from_directory(maps, username, username == current_username);
     }
 }
 
@@ -110,10 +130,12 @@ std::vector<MapEntry> load_available_maps(const std::string &username)
 {
     std::vector<MapEntry> maps;
     append_json_maps_from_directory(maps, maps_directory());
-    append_user_maps_from_directory(maps, username);
+    append_all_user_maps_from_directory(maps, username);
 
     std::sort(maps.begin(), maps.end(), [](const MapEntry &lhs, const MapEntry &rhs) {
-        return lhs.display_name < rhs.display_name;
+        if (lhs.display_name != rhs.display_name)
+            return lhs.display_name < rhs.display_name;
+        return lhs.map_id < rhs.map_id;
     });
     return maps;
 }
