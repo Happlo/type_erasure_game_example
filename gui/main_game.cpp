@@ -31,6 +31,11 @@ constexpr ImVec2 kLoginWindowSize{520.0f, 852.0f};
 constexpr ImVec2 kHighscoreWindowPos{568.0f, 24.0f};
 constexpr ImVec2 kHighscoreWindowSize{848.0f, 852.0f};
 constexpr ImVec2 kResetButtonSize{310.0f, 38.0f};
+constexpr int kUsernameSelection = 0;
+constexpr int kLoginSelection = 1;
+constexpr int kCreateUserSelection = 2;
+constexpr int kCreateMapSelection = 3;
+constexpr int kFirstMapSelection = 4;
 
 struct AppState
 {
@@ -40,6 +45,7 @@ struct AppState
     gui::BuilderEditorState builder;
     std::array<char, 128> username_input{};
     bool should_focus_username{true};
+    int login_selection{kUsernameSelection};
 };
 
 void return_to_login(AppState &app)
@@ -47,6 +53,79 @@ void return_to_login(AppState &app)
     gui::clear_game(app.play, "Choose a map to start a game.");
     gui::clear_builder_editor(app.builder);
     app.should_focus_username = true;
+    app.login_selection = kUsernameSelection;
+}
+
+int login_selectable_count(const AppState &app, const std::vector<core::MapEntry> *maps)
+{
+    int count = kCreateUserSelection + 1;
+    if (app.current_user != nullptr)
+        count = kCreateMapSelection + 1 + static_cast<int>(maps == nullptr ? 0 : maps->size());
+    return count;
+}
+
+void clamp_login_selection(AppState &app, const std::vector<core::MapEntry> *maps)
+{
+    const int count = login_selectable_count(app, maps);
+    app.login_selection = std::clamp(app.login_selection, 0, count - 1);
+}
+
+void draw_selection_border(const bool selected)
+{
+    if (!selected)
+        return;
+
+    constexpr float kInset = 2.0f;
+    const float inset = gui::scaled(kInset);
+    ImGui::GetWindowDrawList()->AddRect(
+        ImVec2(ImGui::GetItemRectMin().x - inset, ImGui::GetItemRectMin().y - inset),
+        ImVec2(ImGui::GetItemRectMax().x + inset, ImGui::GetItemRectMax().y + inset),
+        IM_COL32(245, 214, 112, 255), gui::scaled(8.0f), 0, gui::scaled(2.5f));
+}
+
+void handle_login_navigation(AppState &app, const std::vector<core::MapEntry> *maps)
+{
+    clamp_login_selection(app, maps);
+
+    const int count = login_selectable_count(app, maps);
+    bool moved = false;
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
+    {
+        app.login_selection = (app.login_selection + 1) % count;
+        moved = true;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
+    {
+        app.login_selection = (app.login_selection + count - 1) % count;
+        moved = true;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false) &&
+        app.login_selection == kLoginSelection)
+    {
+        app.login_selection = kCreateUserSelection;
+        moved = true;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false) &&
+        app.login_selection == kCreateUserSelection)
+    {
+        app.login_selection = kLoginSelection;
+        moved = true;
+    }
+
+    if (moved)
+        app.should_focus_username = false;
+}
+
+bool enter_released()
+{
+    return ImGui::IsKeyReleased(ImGuiKey_Enter) || ImGui::IsKeyReleased(ImGuiKey_KeypadEnter);
+}
+
+bool mouse_is_using_login_controls()
+{
+    return ImGui::IsMouseDown(ImGuiMouseButton_Left) ||
+           ImGui::IsMouseClicked(ImGuiMouseButton_Left) ||
+           ImGui::IsMouseReleased(ImGuiMouseButton_Left);
 }
 
 void start_selected_map(AppState &app, const std::string &map_id)
@@ -167,7 +246,7 @@ void draw_highscore_rows(const std::vector<core::HighscoreEntry> &highscores)
     }
 }
 
-void draw_map_buttons(AppState &app)
+void draw_map_buttons(AppState &app, const std::vector<core::MapEntry> &maps)
 {
     if (app.current_user == nullptr)
     {
@@ -175,7 +254,6 @@ void draw_map_buttons(AppState &app)
         return;
     }
 
-    const auto &maps = app.current_user->available_maps();
     const auto &solved_maps = app.current_user->solved_maps();
     if (maps.empty())
     {
@@ -183,8 +261,12 @@ void draw_map_buttons(AppState &app)
         return;
     }
 
-    for (const auto &map : maps)
+    for (int index = 0; index < static_cast<int>(maps.size()); ++index)
     {
+        const auto &map = maps[static_cast<std::size_t>(index)];
+        const int selection = kFirstMapSelection + index;
+        const bool selected = app.login_selection == selection;
+
         // Check if this map is in the solved maps list
         const bool is_solved = std::any_of(solved_maps.begin(), solved_maps.end(),
                                            [&map](const core::MapEntry &solved) {
@@ -199,8 +281,13 @@ void draw_map_buttons(AppState &app)
 
         const std::string label =
             (map.display_name.empty() ? "(unnamed map)" : map.display_name) + "###map_" + map.map_id;
-        if (ImGui::Button(label.c_str(), gui::scaled(ImVec2(220.0f, 38.0f))))
+        if (ImGui::Button(label.c_str(), gui::scaled(ImVec2(220.0f, 38.0f))) ||
+            (selected && enter_released()))
+        {
+            app.login_selection = selection;
             start_selected_map(app, map.map_id);
+        }
+        draw_selection_border(selected);
 
         ImGui::PopStyleColor();
     }
@@ -212,25 +299,46 @@ void draw_login_window(AppState &app)
     ImGui::SetNextWindowSize(gui::scaled(kLoginWindowSize), ImGuiCond_Always);
     ImGui::Begin("Login", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
+    const std::vector<core::MapEntry> *maps_for_navigation = nullptr;
+    if (app.current_user != nullptr)
+        maps_for_navigation = &app.current_user->available_maps();
+    handle_login_navigation(app, maps_for_navigation);
+
     ImGui::TextUnformatted("Type Erasure");
     ImGui::Separator();
     ImGui::TextWrapped("Create a user or log in, then choose a map to start a game.");
     
+    const bool username_selected = app.login_selection == kUsernameSelection;
     if (app.should_focus_username && app.current_user == nullptr &&
-        !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        !mouse_is_using_login_controls())
     {
         ImGui::SetKeyboardFocusHere();
     }
-    if (ImGui::InputText("Username", app.username_input.data(), app.username_input.size(), ImGuiInputTextFlags_EnterReturnsTrue))
+    if (ImGui::InputText("Username", app.username_input.data(), app.username_input.size(), ImGuiInputTextFlags_EnterReturnsTrue) &&
+        username_selected)
         login_existing_user(app);
+    draw_selection_border(username_selected);
     if (ImGui::IsItemActive())
         app.should_focus_username = false;
 
-    if (ImGui::Button("Log In", gui::scaled(ImVec2(140.0f, 40.0f))))
+    const bool login_selected = app.login_selection == kLoginSelection;
+    if (ImGui::Button("Log In", gui::scaled(ImVec2(140.0f, 40.0f))) ||
+        (login_selected && enter_released()))
+    {
+        app.login_selection = kLoginSelection;
         login_existing_user(app);
+    }
+    draw_selection_border(login_selected);
+
     ImGui::SameLine();
-    if (ImGui::Button("Create User", gui::scaled(ImVec2(140.0f, 40.0f))))
+    const bool create_user_selected = app.login_selection == kCreateUserSelection;
+    if (ImGui::Button("Create User", gui::scaled(ImVec2(140.0f, 40.0f))) ||
+        (create_user_selected && enter_released()))
+    {
+        app.login_selection = kCreateUserSelection;
         create_new_user(app);
+    }
+    draw_selection_border(create_user_selected);
 
     ImGui::Spacing();
     if (app.current_user != nullptr)
@@ -242,11 +350,20 @@ void draw_login_window(AppState &app)
     ImGui::TextUnformatted("Available Maps");
     if (app.current_user != nullptr)
     {
-        if (ImGui::Button("Create Map", gui::scaled(ImVec2(220.0f, 38.0f))))
+        const bool create_map_selected = app.login_selection == kCreateMapSelection;
+        if (ImGui::Button("Create Map", gui::scaled(ImVec2(220.0f, 38.0f))) ||
+            (create_map_selected && enter_released()))
+        {
+            app.login_selection = kCreateMapSelection;
             create_new_map(app);
+        }
+        draw_selection_border(create_map_selected);
         ImGui::Spacing();
     }
-    draw_map_buttons(app);
+    if (app.current_user != nullptr)
+        draw_map_buttons(app, app.current_user->available_maps());
+    else
+        ImGui::TextDisabled("Log in to see the map list.");
 
     ImGui::End();
 }
