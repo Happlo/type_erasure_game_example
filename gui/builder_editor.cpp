@@ -207,24 +207,25 @@ void draw_object_preview(const BuilderEditorState &state)
 
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
-    const ImVec2 cell_max(origin.x + 72.0f, origin.y + 72.0f);
+    const ImVec2 preview_size = scaled(ImVec2(72.0f, 72.0f));
+    const ImVec2 cell_max(origin.x + preview_size.x, origin.y + preview_size.y);
     draw_list->AddRectFilled(
         origin, cell_max,
-        preview_is_player ? IM_COL32(236, 177, 79, 255) : object_tile_fill(state.object), 14.0f);
+        preview_is_player ? IM_COL32(236, 177, 79, 255) : object_tile_fill(state.object), scaled(14.0f));
     draw_list->AddRect(origin, cell_max,
                        preview_is_player ? IM_COL32(255, 226, 157, 255)
                                          : object_tile_outline(state.object),
-                       14.0f, 0, 3.0f);
+                       scaled(14.0f), 0, scaled(3.0f));
     draw_tile_symbol(*draw_list, origin, cell_max,
-                     preview_is_player ? state.object.symbol : state.object.symbol, 40.0f);
-    ImGui::Dummy(ImVec2(72.0f, 72.0f));
+                     preview_is_player ? state.object.symbol : state.object.symbol, scaled(40.0f));
+    ImGui::Dummy(preview_size);
 }
 
 bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
 {
     bool back_requested = false;
-    ImGui::SetNextWindowPos(kToolsWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kToolsWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(scaled(kToolsWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(scaled(kToolsWindowSize), ImGuiCond_Always);
     ImGui::Begin("Builder Deck", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     ImGui::TextUnformatted("Type Erasure Builder");
@@ -273,20 +274,20 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::InputText("File", state.file_path.data(), state.file_path.size());
-    if (ImGui::Button("Save Map", ImVec2(140.0f, 36.0f)))
+    if (ImGui::Button("Save Map", scaled(ImVec2(140.0f, 36.0f))))
         save_map(state);
     ImGui::SameLine();
-    if (ImGui::Button("Load Map", ImVec2(140.0f, 36.0f)))
+    if (ImGui::Button("Load Map", scaled(ImVec2(140.0f, 36.0f))))
         load_map(state);
-    if (ImGui::Button("Validate", ImVec2(140.0f, 36.0f)))
+    if (ImGui::Button("Validate", scaled(ImVec2(140.0f, 36.0f))))
         validate_map(state);
     ImGui::SameLine();
-    if (ImGui::Button("Try Map", ImVec2(140.0f, 36.0f)))
+    if (ImGui::Button("Try Map", scaled(ImVec2(140.0f, 36.0f))))
         try_map(state);
 
     if (show_back_button)
     {
-        if (ImGui::Button("Back To Maps", ImVec2(310.0f, 38.0f)))
+        if (ImGui::Button("Back To Maps", scaled(ImVec2(310.0f, 38.0f))))
             back_requested = true;
     }
 
@@ -307,13 +308,15 @@ void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const Viewp
     const int screen_x = x - viewport.min.x;
     const int screen_y = y - viewport.min.y;
     const ImVec2 cell_min(origin.x + screen_x * tile_size, origin.y + screen_y * tile_size);
-    const ImVec2 cell_max(cell_min.x + tile_size - 4.0f, cell_min.y + tile_size - 4.0f);
+    const float gap = scaled(4.0f);
+    const float rounding = scaled(12.0f);
+    const ImVec2 cell_max(cell_min.x + tile_size - gap, cell_min.y + tile_size - gap);
     draw_list.AddRectFilled(
         cell_min, cell_max,
         has_player
             ? IM_COL32(236, 177, 79, 255)
             : (object == view.objects.end() ? empty_tile_fill() : object_tile_fill(object->second)),
-        12.0f);
+        rounding);
     const bool selected = state.selected_cell.has_value() && state.selected_cell->x == x &&
                           state.selected_cell->y == y;
     draw_list.AddRect(cell_min, cell_max,
@@ -322,7 +325,7 @@ void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const Viewp
                                              : (object == view.objects.end()
                                                     ? IM_COL32(72, 79, 88, 255)
                                                     : object_tile_outline(object->second))),
-                      12.0f, 0, selected ? 4.0f : 2.0f);
+                      rounding, 0, scaled(selected ? 4.0f : 2.0f));
     if (has_player || object != view.objects.end())
         draw_tile_symbol(draw_list, cell_min, cell_max,
                          has_player ? view.player->symbol : object->second.symbol,
@@ -349,18 +352,20 @@ void draw_map_row(ImDrawList &draw_list, BuilderEditorState &state, const Viewpo
 
 void draw_canvas_window(BuilderEditorState &state)
 {
-    ImGui::SetNextWindowPos(kCanvasWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kCanvasWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(scaled(kCanvasWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(scaled(kCanvasWindowSize), ImGuiCond_Always);
     ImGui::Begin("Canvas", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     const Viewport viewport = viewport_for(state);
-    const float tile_size = std::clamp(
-        560.0f / static_cast<float>(std::max(viewport.width, viewport.height)), 34.0f, 72.0f);
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+    const float fit_size = std::min(available.x / static_cast<float>(viewport.width),
+                                    available.y / static_cast<float>(viewport.height));
+    const float tile_size = std::clamp(fit_size, scaled(24.0f), scaled(96.0f));
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 total_size(tile_size * viewport.width, tile_size * viewport.height);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     draw_list->AddRectFilled(origin, ImVec2(origin.x + total_size.x, origin.y + total_size.y),
-                             IM_COL32(20, 24, 29, 255), 18.0f);
+                             IM_COL32(20, 24, 29, 255), scaled(18.0f));
 
     for (int y = viewport.min.y; y < viewport.min.y + viewport.height; ++y)
         draw_map_row(*draw_list, state, viewport, tile_size, origin, y);
@@ -378,8 +383,8 @@ void return_to_builder(BuilderEditorState &state)
 
 void draw_try_tools_window(BuilderEditorState &state, const core::MapView &view)
 {
-    ImGui::SetNextWindowPos(kToolsWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kToolsWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(scaled(kToolsWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(scaled(kToolsWindowSize), ImGuiCond_Always);
     ImGui::Begin("Try Map", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     ImGui::TextUnformatted("Type Erasure Builder");
@@ -393,7 +398,7 @@ void draw_try_tools_window(BuilderEditorState &state, const core::MapView &view)
     gui::draw_game_action_controls(state.try_game);
 
     ImGui::Spacing();
-    if (ImGui::Button("Back To Builder", ImVec2(310.0f, 38.0f)))
+    if (ImGui::Button("Back To Builder", scaled(ImVec2(310.0f, 38.0f))))
         return_to_builder(state);
 
     ImGui::Spacing();
@@ -404,8 +409,8 @@ void draw_try_tools_window(BuilderEditorState &state, const core::MapView &view)
 
 void draw_try_canvas_window(const GamePlayState &try_game, const core::MapView &view)
 {
-    ImGui::SetNextWindowPos(kCanvasWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kCanvasWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(scaled(kCanvasWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(scaled(kCanvasWindowSize), ImGuiCond_Always);
     ImGui::Begin("Playtest", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     gui::draw_game_grid(view, try_game.equation_result);
     ImGui::End();

@@ -9,6 +9,7 @@
 
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <exception>
@@ -117,8 +118,8 @@ void handle_keyboard(AppState &app)
 
 void draw_control_window(AppState &app, const core::MapView &view)
 {
-    ImGui::SetNextWindowPos(kControlWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kControlWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(gui::scaled(kControlWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(gui::scaled(kControlWindowSize), ImGuiCond_Always);
     ImGui::Begin("Control Deck", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     ImGui::TextUnformatted("Type Erasure");
@@ -134,7 +135,7 @@ void draw_control_window(AppState &app, const core::MapView &view)
     gui::draw_game_action_controls(app.play);
 
     ImGui::Spacing();
-    if (ImGui::Button("Back To Login  [R]", kResetButtonSize))
+    if (ImGui::Button("Back To Login  [R]", gui::scaled(kResetButtonSize)))
         return_to_login(app);
 
     gui::draw_game_status(app.play);
@@ -145,8 +146,8 @@ void draw_control_window(AppState &app, const core::MapView &view)
 void draw_board_window(const core::MapView &view,
                        const std::optional<core::GameResult> &result)
 {
-    ImGui::SetNextWindowPos(kBoardWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kBoardWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(gui::scaled(kBoardWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(gui::scaled(kBoardWindowSize), ImGuiCond_Always);
     ImGui::Begin("Board", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     gui::draw_game_grid(view, result);
     ImGui::End();
@@ -157,7 +158,7 @@ void draw_highscore_rows(const std::vector<core::HighscoreEntry> &highscores)
     for (const auto &entry : highscores)
     {
         ImGui::BulletText("%s", entry.username.c_str());
-        ImGui::SameLine(240.0f);
+        ImGui::SameLine(gui::scaled(240.0f));
         ImGui::Text("%d solved", entry.solved_maps);
     }
 }
@@ -194,15 +195,15 @@ void draw_map_buttons(AppState &app)
     {
         const std::string label =
             (map.display_name.empty() ? "(unnamed map)" : map.display_name) + "###map_" + map.map_id;
-        if (ImGui::Button(label.c_str(), ImVec2(220.0f, 38.0f)))
+        if (ImGui::Button(label.c_str(), gui::scaled(ImVec2(220.0f, 38.0f))))
             start_selected_map(app, map.map_id);
     }
 }
 
 void draw_login_window(AppState &app)
 {
-    ImGui::SetNextWindowPos(kLoginWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kLoginWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(gui::scaled(kLoginWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(gui::scaled(kLoginWindowSize), ImGuiCond_Always);
     ImGui::Begin("Login", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     ImGui::TextUnformatted("Type Erasure");
@@ -210,10 +211,10 @@ void draw_login_window(AppState &app)
     ImGui::TextWrapped("Create a user or log in, then choose a map to start a game.");
     ImGui::InputText("Username", app.username_input.data(), app.username_input.size());
 
-    if (ImGui::Button("Log In", ImVec2(140.0f, 40.0f)))
+    if (ImGui::Button("Log In", gui::scaled(ImVec2(140.0f, 40.0f))))
         login_existing_user(app);
     ImGui::SameLine();
-    if (ImGui::Button("Create User", ImVec2(140.0f, 40.0f)))
+    if (ImGui::Button("Create User", gui::scaled(ImVec2(140.0f, 40.0f))))
         create_new_user(app);
 
     ImGui::Spacing();
@@ -226,7 +227,7 @@ void draw_login_window(AppState &app)
     ImGui::TextUnformatted("Available Maps");
     if (app.current_user != nullptr)
     {
-        if (ImGui::Button("Create Map", ImVec2(220.0f, 38.0f)))
+        if (ImGui::Button("Create Map", gui::scaled(ImVec2(220.0f, 38.0f))))
             create_new_map(app);
         ImGui::Spacing();
     }
@@ -245,8 +246,8 @@ void draw_login_window(AppState &app)
 
 void draw_highscore_window(const AppState &app)
 {
-    ImGui::SetNextWindowPos(kHighscoreWindowPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(kHighscoreWindowSize, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(gui::scaled(kHighscoreWindowPos), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(gui::scaled(kHighscoreWindowSize), ImGuiCond_Always);
     ImGui::Begin("Highscores", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     ImGui::TextUnformatted("Leaderboard");
     ImGui::Separator();
@@ -279,6 +280,7 @@ void draw_frame(GLFWwindow *window, AppState &app)
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
+    gui::apply_style();
     ImGui::NewFrame();
 
     handle_keyboard(app);
@@ -317,7 +319,20 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    GLFWwindow *window = glfwCreateWindow(1440, 900, "Type Erasure", nullptr, nullptr);
+    int window_width = 1440;
+    int window_height = 900;
+    if (GLFWmonitor *monitor = glfwGetPrimaryMonitor())
+    {
+        if (const GLFWvidmode *mode = glfwGetVideoMode(monitor))
+        {
+            const int min_width = std::min(1024, mode->width);
+            const int min_height = std::min(720, mode->height);
+            window_width = std::clamp(static_cast<int>(mode->width * 0.9f), min_width, mode->width);
+            window_height = std::clamp(static_cast<int>(mode->height * 0.9f), min_height, mode->height);
+        }
+    }
+
+    GLFWwindow *window = glfwCreateWindow(window_width, window_height, "Type Erasure", nullptr, nullptr);
     if (window == nullptr)
     {
         std::fprintf(stderr, "Failed to create GLFW window\n");

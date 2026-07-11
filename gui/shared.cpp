@@ -123,20 +123,40 @@ DisplayBounds visible_display_bounds(const core::MapView& view)
 }
 }  // namespace
 
+float ui_scale()
+{
+    const ImVec2 display_size = ImGui::GetIO().DisplaySize;
+    if (display_size.x <= 0.0f || display_size.y <= 0.0f)
+        return 1.0f;
+
+    constexpr ImVec2 kDesignSize{1440.0f, 900.0f};
+    return std::clamp(std::min(display_size.x / kDesignSize.x,
+                               display_size.y / kDesignSize.y),
+                      0.75f, 2.25f);
+}
+
+float scaled(const float value) { return value * ui_scale(); }
+
+ImVec2 scaled(const ImVec2 value) { return ImVec2(scaled(value.x), scaled(value.y)); }
+
 void apply_style()
 {
+    const float scale = ui_scale();
+    ImGui::GetIO().FontGlobalScale = scale;
+
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 18.0f;
-    style.ChildRounding = 14.0f;
-    style.FrameRounding = 10.0f;
-    style.PopupRounding = 10.0f;
-    style.GrabRounding = 10.0f;
-    style.ScrollbarRounding = 10.0f;
-    style.TabRounding = 10.0f;
-    style.WindowPadding = ImVec2(16.0f, 16.0f);
-    style.FramePadding = ImVec2(10.0f, 8.0f);
-    style.ItemSpacing = ImVec2(10.0f, 10.0f);
-    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
+    style = ImGuiStyle{};
+    style.WindowRounding = 18.0f * scale;
+    style.ChildRounding = 14.0f * scale;
+    style.FrameRounding = 10.0f * scale;
+    style.PopupRounding = 10.0f * scale;
+    style.GrabRounding = 10.0f * scale;
+    style.ScrollbarRounding = 10.0f * scale;
+    style.TabRounding = 10.0f * scale;
+    style.WindowPadding = scaled(ImVec2(16.0f, 16.0f));
+    style.FramePadding = scaled(ImVec2(10.0f, 8.0f));
+    style.ItemSpacing = scaled(ImVec2(10.0f, 10.0f));
+    style.ItemInnerSpacing = scaled(ImVec2(8.0f, 6.0f));
 
     ImVec4* colors = style.Colors;
     colors[ImGuiCol_WindowBg] = color_from_rgb(16, 20, 24);
@@ -314,20 +334,20 @@ void draw_game_sidebar_state(const GamePlayState& state, const core::MapView& vi
 void draw_game_action_controls(GamePlayState& state)
 {
     ImGui::TextUnformatted("Movement");
-    game_action_button("Up", kMoveButtonSize, state, core::Event::MoveUp);
-    game_action_button("Left", kMoveButtonSize, state, core::Event::MoveLeft);
+    game_action_button("Up", scaled(kMoveButtonSize), state, core::Event::MoveUp);
+    game_action_button("Left", scaled(kMoveButtonSize), state, core::Event::MoveLeft);
     ImGui::SameLine();
-    game_action_button("Down", kMoveButtonSize, state, core::Event::MoveDown);
+    game_action_button("Down", scaled(kMoveButtonSize), state, core::Event::MoveDown);
     ImGui::SameLine();
-    game_action_button("Right", kMoveButtonSize, state, core::Event::MoveRight);
+    game_action_button("Right", scaled(kMoveButtonSize), state, core::Event::MoveRight);
 
     ImGui::Spacing();
-    game_action_button("Pick  [E]", kActionButtonSize, state, core::Event::PickItem);
+    game_action_button("Pick  [E]", scaled(kActionButtonSize), state, core::Event::PickItem);
     ImGui::SameLine();
-    game_action_button("Drop  [Q]", kActionButtonSize, state, core::Event::DropItem);
-    game_action_button("Commit  [C]", kActionButtonSize, state, core::Event::Commit);
+    game_action_button("Drop  [Q]", scaled(kActionButtonSize), state, core::Event::DropItem);
+    game_action_button("Commit  [C]", scaled(kActionButtonSize), state, core::Event::Commit);
     ImGui::SameLine();
-    game_action_button("Undo  [U]", kActionButtonSize, state, core::Event::Undo);
+    game_action_button("Undo  [U]", scaled(kActionButtonSize), state, core::Event::Undo);
 }
 
 void draw_game_variables(const std::optional<core::GameResult>& result)
@@ -383,7 +403,7 @@ void draw_game_inventory(const core::MapView& view)
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.31f, 0.50f, 0.69f, 1.0f));
         char label[8];
         std::snprintf(label, sizeof(label), "%c", item.symbol);
-        ImGui::Button(label, ImVec2(36.0f, 32.0f));
+        ImGui::Button(label, scaled(ImVec2(36.0f, 32.0f)));
         ImGui::PopStyleColor(3);
         ImGui::PopID();
         if (i + 1 < view.player->inventory.size())
@@ -426,12 +446,14 @@ void draw_game_tile(const GridRenderContext& ctx, const core::Object* object, co
                     const int y)
 {
     const ImVec2 cell_min(ctx.origin.x + x * ctx.tile_size, ctx.origin.y + y * ctx.tile_size);
-    const ImVec2 cell_max(cell_min.x + ctx.tile_size - 4.0f, cell_min.y + ctx.tile_size - 4.0f);
+    const float gap = scaled(4.0f);
+    const float rounding = scaled(12.0f);
+    const ImVec2 cell_max(cell_min.x + ctx.tile_size - gap, cell_min.y + ctx.tile_size - gap);
     ImU32 fill = object == nullptr ? empty_tile_fill() : object_tile_fill(*object);
     ImU32 outline =
         ctx.solved ? IM_COL32(182, 240, 175, 255)
                    : (object == nullptr ? IM_COL32(72, 79, 88, 255) : object_tile_outline(*object));
-    float thickness = ctx.solved ? 3.0f : 2.0f;
+    float thickness = scaled(ctx.solved ? 3.0f : 2.0f);
 
     const core::Location location{.x = ctx.min_location.x + x, .y = ctx.min_location.y + y};
     if (object != nullptr && object->symbol == '=' && ctx.equation_result != nullptr)
@@ -449,12 +471,12 @@ void draw_game_tile(const GridRenderContext& ctx, const core::Object* object, co
                 fill = IM_COL32(92, 39, 39, 255);
                 outline = IM_COL32(235, 126, 126, 255);
             }
-            thickness = 3.0f;
+            thickness = scaled(3.0f);
         }
     }
 
-    ctx.draw_list->AddRectFilled(cell_min, cell_max, fill, 12.0f);
-    ctx.draw_list->AddRect(cell_min, cell_max, outline, 12.0f, 0, thickness);
+    ctx.draw_list->AddRectFilled(cell_min, cell_max, fill, rounding);
+    ctx.draw_list->AddRect(cell_min, cell_max, outline, rounding, 0, thickness);
     if (object != nullptr)
         draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, object->symbol, ctx.tile_size * 0.58f);
 }
@@ -464,9 +486,11 @@ void draw_player_tile(const GridRenderContext& ctx, const core::Player& player)
     const int x = player.location.x - ctx.min_location.x;
     const int y = player.location.y - ctx.min_location.y;
     const ImVec2 cell_min(ctx.origin.x + x * ctx.tile_size, ctx.origin.y + y * ctx.tile_size);
-    const ImVec2 cell_max(cell_min.x + ctx.tile_size - 4.0f, cell_min.y + ctx.tile_size - 4.0f);
-    ctx.draw_list->AddRectFilled(cell_min, cell_max, IM_COL32(236, 177, 79, 255), 12.0f);
-    ctx.draw_list->AddRect(cell_min, cell_max, IM_COL32(255, 226, 157, 255), 12.0f, 0, 3.0f);
+    const float gap = scaled(4.0f);
+    const float rounding = scaled(12.0f);
+    const ImVec2 cell_max(cell_min.x + ctx.tile_size - gap, cell_min.y + ctx.tile_size - gap);
+    ctx.draw_list->AddRectFilled(cell_min, cell_max, IM_COL32(236, 177, 79, 255), rounding);
+    ctx.draw_list->AddRect(cell_min, cell_max, IM_COL32(255, 226, 157, 255), rounding, 0, scaled(3.0f));
     draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, player.symbol, ctx.tile_size * 0.58f);
 }
 
@@ -474,12 +498,13 @@ void draw_game_solved_badge(ImDrawList& draw_list, const ImVec2 origin)
 {
     const char* message = "Equation Solved";
     ImFont* font = ImGui::GetFont();
-    const float font_size = 30.0f;
+    const float font_size = scaled(30.0f);
     const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, message);
-    const ImVec2 badge_min(origin.x + 18.0f, origin.y + 18.0f);
-    const ImVec2 badge_max(badge_min.x + text_size.x + 28.0f, badge_min.y + text_size.y + 18.0f);
-    const ImVec2 text_pos(badge_min.x + 14.0f, badge_min.y + 9.0f);
-    draw_list.AddRectFilled(badge_min, badge_max, IM_COL32(97, 181, 92, 235), 12.0f);
+    const ImVec2 badge_min(origin.x + scaled(18.0f), origin.y + scaled(18.0f));
+    const ImVec2 badge_max(badge_min.x + text_size.x + scaled(28.0f),
+                           badge_min.y + text_size.y + scaled(18.0f));
+    const ImVec2 text_pos(badge_min.x + scaled(14.0f), badge_min.y + scaled(9.0f));
+    draw_list.AddRectFilled(badge_min, badge_max, IM_COL32(97, 181, 92, 235), scaled(12.0f));
     draw_list.AddText(font, font_size, text_pos, IM_COL32(250, 255, 247, 255), message);
 }
 
@@ -488,12 +513,14 @@ void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const
 {
     draw_list.AddRectFilled(origin, board_max,
                             solved ? IM_COL32(23, 43, 30, 255) : IM_COL32(20, 24, 29, 255),
-                            18.0f);
+                            scaled(18.0f));
     if (!solved)
         return;
 
-    draw_list.AddRect(origin, board_max, IM_COL32(137, 224, 151, 255), 18.0f, 0, 4.0f);
-    draw_list.AddRect(origin, board_max, IM_COL32(195, 255, 204, 120), 18.0f, 0, 10.0f);
+    draw_list.AddRect(origin, board_max, IM_COL32(137, 224, 151, 255), scaled(18.0f), 0,
+                      scaled(4.0f));
+    draw_list.AddRect(origin, board_max, IM_COL32(195, 255, 204, 120), scaled(18.0f), 0,
+                      scaled(10.0f));
 }
 
 void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result)
@@ -502,8 +529,10 @@ void draw_game_grid(const core::MapView& view, const std::optional<core::GameRes
     const DisplayBounds bounds = visible_display_bounds(view);
     const int width = display_width(bounds);
     const int height = display_height(bounds);
-    const float tile_size =
-        std::clamp(560.0f / static_cast<float>(std::max(width, height)), 36.0f, 72.0f);
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+    const float fit_size = std::min(available.x / static_cast<float>(width),
+                                    available.y / static_cast<float>(height));
+    const float tile_size = std::clamp(fit_size, scaled(24.0f), scaled(96.0f));
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 total_size(tile_size * width, tile_size * height);
     ImDrawList* draw_list = ImGui::GetWindowDrawList();

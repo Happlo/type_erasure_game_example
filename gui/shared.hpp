@@ -20,6 +20,9 @@ struct GamePlayState
 };
 
 void apply_style();
+float ui_scale();
+float scaled(float value);
+ImVec2 scaled(ImVec2 value);
 
 bool game_is_solved(const core::GameResult& result);
 void start_game(GamePlayState& state, std::unique_ptr<core::Game> game, std::string status);
