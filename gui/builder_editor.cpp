@@ -16,7 +16,6 @@ namespace
 using gui::draw_tile_symbol;
 using gui::empty_tile_fill;
 using gui::object_tile_fill;
-using gui::object_tile_outline;
 
 constexpr ImVec2 kToolsWindowPos{24.0f, 24.0f};
 constexpr ImVec2 kToolsWindowSize{360.0f, 852.0f};
@@ -210,10 +209,9 @@ void draw_object_preview(const BuilderEditorState &state)
     const ImVec2 cell_max(origin.x + preview_size.x, origin.y + preview_size.y);
     draw_list->AddRectFilled(
         origin, cell_max,
-        preview_is_player ? IM_COL32(236, 177, 79, 255) : object_tile_fill(state.object), scaled(14.0f));
+        preview_is_player ? palette::player_fill : object_tile_fill(state.object), scaled(14.0f));
     draw_list->AddRect(origin, cell_max,
-                       preview_is_player ? IM_COL32(255, 226, 157, 255)
-                                         : object_tile_outline(state.object),
+                       preview_is_player ? palette::player_outline : palette::tile_outline,
                        scaled(14.0f), 0, scaled(3.0f));
     draw_tile_symbol(*draw_list, origin, cell_max,
                      preview_is_player ? state.object.symbol : state.object.symbol, scaled(40.0f));
@@ -305,17 +303,14 @@ void draw_map_tile(ImDrawList &draw_list, BuilderEditorState &state, const Viewp
     draw_list.AddRectFilled(
         cell_min, cell_max,
         has_player
-            ? IM_COL32(236, 177, 79, 255)
+            ? palette::player_fill
             : (object == view.objects.end() ? empty_tile_fill() : object_tile_fill(object->second)),
         rounding);
     const bool selected = state.selected_cell.has_value() && state.selected_cell->x == x &&
                           state.selected_cell->y == y;
     draw_list.AddRect(cell_min, cell_max,
-                      selected ? IM_COL32(255, 231, 168, 255)
-                               : (has_player ? IM_COL32(255, 226, 157, 255)
-                                             : (object == view.objects.end()
-                                                    ? IM_COL32(72, 79, 88, 255)
-                                                    : object_tile_outline(object->second))),
+                      selected ? palette::selected_tile_outline
+                               : (has_player ? palette::player_outline : palette::tile_outline),
                       rounding, 0, scaled(selected ? 4.0f : 2.0f));
     if (has_player || object != view.objects.end())
         draw_tile_symbol(draw_list, cell_min, cell_max,
@@ -356,7 +351,7 @@ void draw_canvas_window(BuilderEditorState &state)
     const ImVec2 total_size(tile_size * viewport.width, tile_size * viewport.height);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     draw_list->AddRectFilled(origin, ImVec2(origin.x + total_size.x, origin.y + total_size.y),
-                             IM_COL32(20, 24, 29, 255), scaled(18.0f));
+                             palette::board_background, scaled(18.0f));
 
     for (int y = viewport.min.y; y < viewport.min.y + viewport.height; ++y)
         draw_map_row(*draw_list, state, viewport, tile_size, origin, y);

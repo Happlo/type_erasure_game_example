@@ -36,6 +36,8 @@ constexpr int kLoginSelection = 1;
 constexpr int kCreateUserSelection = 2;
 constexpr int kCreateMapSelection = 3;
 constexpr int kFirstMapSelection = 4;
+constexpr ImU32 kKeyboardSelectionOutline = IM_COL32(245, 214, 112, 255);
+constexpr ImU32 kSolvedMapButtonColor = IM_COL32(76, 175, 80, 255);
 
 struct AppState
 {
@@ -80,7 +82,7 @@ void draw_selection_border(const bool selected)
     ImGui::GetWindowDrawList()->AddRect(
         ImVec2(ImGui::GetItemRectMin().x - inset, ImGui::GetItemRectMin().y - inset),
         ImVec2(ImGui::GetItemRectMax().x + inset, ImGui::GetItemRectMax().y + inset),
-        IM_COL32(245, 214, 112, 255), gui::scaled(8.0f), 0, gui::scaled(2.5f));
+        kKeyboardSelectionOutline, gui::scaled(8.0f), 0, gui::scaled(2.5f));
 }
 
 void handle_login_navigation(AppState &app, const std::vector<core::MapEntry> *maps)
@@ -275,7 +277,7 @@ void draw_map_buttons(AppState &app, const std::vector<core::MapEntry> &maps)
 
         // Change button color if solved
         if (is_solved)
-            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(76, 175, 80, 255));         // Green
+            ImGui::PushStyleColor(ImGuiCol_Button, kSolvedMapButtonColor);
         else
             ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_Button));
 

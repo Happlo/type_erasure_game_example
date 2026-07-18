@@ -9,6 +9,12 @@ namespace gui
 {
 namespace
 {
+const ImVec4 kSolvedTextColor{0.68f, 0.91f, 0.67f, 1.0f};
+const ImVec4 kAssignmentTextColor{0.95f, 0.84f, 0.45f, 1.0f};
+const ImVec4 kInventoryButtonColor{0.38f, 0.58f, 0.77f, 1.0f};
+const ImVec4 kInventoryButtonHoveredColor{0.46f, 0.67f, 0.87f, 1.0f};
+const ImVec4 kInventoryButtonActiveColor{0.31f, 0.50f, 0.69f, 1.0f};
+
 ImVec4 color_from_rgb(const int r, const int g, const int b)
 {
     return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
@@ -296,7 +302,7 @@ void draw_game_status(const GamePlayState& state)
 
     if (state.equation_result.has_value() && game_is_solved(*state.equation_result))
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.68f, 0.91f, 0.67f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, kSolvedTextColor);
         ImGui::TextWrapped("Solved. Load another map or reset to play again.");
         ImGui::PopStyleColor();
     }
@@ -349,7 +355,7 @@ void draw_game_assignment_feedback(const GamePlayState& state)
     if (state.assignment_feedback.empty())
         return;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.84f, 0.45f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, kAssignmentTextColor);
     ImGui::TextWrapped("Assigned: %s", state.assignment_feedback.c_str());
     ImGui::PopStyleColor();
 }
@@ -367,9 +373,9 @@ void draw_game_inventory(const core::MapView& view)
     {
         const auto& item = view.player->inventory[i];
         ImGui::PushID(static_cast<int>(i));
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.38f, 0.58f, 0.77f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.46f, 0.67f, 0.87f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.31f, 0.50f, 0.69f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, kInventoryButtonColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kInventoryButtonHoveredColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, kInventoryButtonActiveColor);
         char label[8];
         std::snprintf(label, sizeof(label), "%c", item.symbol);
         ImGui::Button(label, scaled(ImVec2(36.0f, 32.0f)));
@@ -382,21 +388,14 @@ void draw_game_inventory(const core::MapView& view)
 
 ImU32 empty_tile_fill()
 {
-    return IM_COL32(31, 37, 43, 255);
+    return palette::empty_tile;
 }
 
 ImU32 object_tile_fill(const core::Object& object)
 {
-    if (object.symbol == '=' || object.symbol == '+') return IM_COL32(108, 167, 124, 255);
-    if (object.manipulation_level == core::Object::ManipulationLevel::Pick) return IM_COL32(97, 147, 196, 255);
-    if (object.manipulation_level == core::Object::ManipulationLevel::Push) return IM_COL32(189, 112, 143, 255);
-    return IM_COL32(116, 123, 132, 255);
-}
-
-ImU32 object_tile_outline(const core::Object& object)
-{
-    if (object.symbol == '=' || object.symbol == '+') return IM_COL32(170, 223, 170, 255);
-    return IM_COL32(72, 79, 88, 255);
+    if (object.manipulation_level == core::Object::ManipulationLevel::Pick) return palette::pickable_tile;
+    if (object.manipulation_level == core::Object::ManipulationLevel::Push) return palette::pushable_tile;
+    return palette::fixed_tile;
 }
 
 void draw_tile_symbol(ImDrawList& draw_list, const ImVec2& cell_min, const ImVec2& cell_max, const char symbol,
@@ -420,8 +419,7 @@ void draw_game_tile(const GridRenderContext& ctx, const core::Object* object, co
     const ImVec2 cell_max(cell_min.x + ctx.tile_size - gap, cell_min.y + ctx.tile_size - gap);
     ImU32 fill = object == nullptr ? empty_tile_fill() : object_tile_fill(*object);
     ImU32 outline =
-        ctx.solved ? IM_COL32(182, 240, 175, 255)
-                   : (object == nullptr ? IM_COL32(72, 79, 88, 255) : object_tile_outline(*object));
+        ctx.solved ? palette::solved_tile_outline : palette::tile_outline;
     float thickness = scaled(ctx.solved ? 3.0f : 2.0f);
 
     const core::Location location{.x = ctx.min_location.x + x, .y = ctx.min_location.y + y};
@@ -432,13 +430,11 @@ void draw_game_tile(const GridRenderContext& ctx, const core::Object* object, co
         {
             if (equality_status == core::EqualityStatus::Equal)
             {
-                fill = IM_COL32(36, 88, 54, 255);
-                outline = IM_COL32(154, 236, 170, 255);
+                outline = palette::correct_equation;
             }
             else
             {
-                fill = IM_COL32(92, 39, 39, 255);
-                outline = IM_COL32(235, 126, 126, 255);
+                outline = palette::incorrect_equation;
             }
             thickness = scaled(3.0f);
         }
@@ -458,8 +454,8 @@ void draw_player_tile(const GridRenderContext& ctx, const core::Player& player)
     const float gap = scaled(4.0f);
     const float rounding = scaled(12.0f);
     const ImVec2 cell_max(cell_min.x + ctx.tile_size - gap, cell_min.y + ctx.tile_size - gap);
-    ctx.draw_list->AddRectFilled(cell_min, cell_max, IM_COL32(236, 177, 79, 255), rounding);
-    ctx.draw_list->AddRect(cell_min, cell_max, IM_COL32(255, 226, 157, 255), rounding, 0, scaled(3.0f));
+    ctx.draw_list->AddRectFilled(cell_min, cell_max, palette::player_fill, rounding);
+    ctx.draw_list->AddRect(cell_min, cell_max, palette::player_outline, rounding, 0, scaled(3.0f));
     draw_tile_symbol(*ctx.draw_list, cell_min, cell_max, player.symbol, ctx.tile_size * 0.58f);
 }
 
@@ -473,22 +469,22 @@ void draw_game_solved_badge(ImDrawList& draw_list, const ImVec2 origin)
     const ImVec2 badge_max(badge_min.x + text_size.x + scaled(28.0f),
                            badge_min.y + text_size.y + scaled(18.0f));
     const ImVec2 text_pos(badge_min.x + scaled(14.0f), badge_min.y + scaled(9.0f));
-    draw_list.AddRectFilled(badge_min, badge_max, IM_COL32(97, 181, 92, 235), scaled(12.0f));
-    draw_list.AddText(font, font_size, text_pos, IM_COL32(250, 255, 247, 255), message);
+    draw_list.AddRectFilled(badge_min, badge_max, palette::solved_badge, scaled(12.0f));
+    draw_list.AddText(font, font_size, text_pos, palette::solved_badge_text, message);
 }
 
 void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const ImVec2 board_max,
                                const bool solved)
 {
     draw_list.AddRectFilled(origin, board_max,
-                            solved ? IM_COL32(23, 43, 30, 255) : IM_COL32(20, 24, 29, 255),
+                            solved ? palette::solved_board_background : palette::board_background,
                             scaled(18.0f));
     if (!solved)
         return;
 
-    draw_list.AddRect(origin, board_max, IM_COL32(137, 224, 151, 255), scaled(18.0f), 0,
+    draw_list.AddRect(origin, board_max, palette::solved_board_outline, scaled(18.0f), 0,
                       scaled(4.0f));
-    draw_list.AddRect(origin, board_max, IM_COL32(195, 255, 204, 120), scaled(18.0f), 0,
+    draw_list.AddRect(origin, board_max, palette::solved_board_glow, scaled(18.0f), 0,
                       scaled(10.0f));
 }
 
