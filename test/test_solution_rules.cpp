@@ -66,6 +66,12 @@ TEST(EvaluateEquationTest, ReturnsExpectedResults)
             .equal_sign_status = {{{3, 0}, core::EqualityStatus::Equal},
                                   {{9, 0}, core::EqualityStatus::Equal}},
         },
+        EvaluateEquationCase{
+            .grid = "2+x=2*x\n"
+                    "x:2\n",
+            .resolved_variables = {{'x', 2}},
+            .equal_sign_status = {{{3, 0}, core::EqualityStatus::Equal}},
+        },
     };
 
     for (const auto &test_case : test_cases)
@@ -76,7 +82,7 @@ INSTANTIATE_TEST_SUITE_P(SolutionRules, SolvedEquationSuccessTest,
                          ::testing::Values("1+2=3\n"
                                            "     \n"
                                            "  v  \n",
-                                           "1+2+3=6\n", "1+2+3=5+1\n", "1 +  2   +3 =   6\n",
+                                           "1+2+3=6\n", "1+2+3=5+1\n",
                                            "1+2+3+4+5+6=21\n", "1+5+4=10\n", "40+60+110=210\n",
                                            "7-3=4\n", "7-3=5-1\n", "7*3=21\n", "7*5=40-5\n",
                                            "20/5=4\n", "20/5=2*2\n", "5-10=10-15\n",
@@ -97,6 +103,7 @@ INSTANTIATE_TEST_SUITE_P(SolutionRules, SolvedEquationFailureTest,
                                            "             \n"
                                            "      v      \n",
                                            "1+1=3#12+3\n",
+                                           "2=1+ 1\n", "1 +  2   +3 =   6\n",
                                            "12+3 \n"
                                            "     \n"
                                            "  >  \n",

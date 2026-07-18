@@ -3,6 +3,8 @@
 
 #include "player.hpp"
 
+#include <vector>
+
 namespace core::grid_rules
 {
 namespace
@@ -42,15 +44,28 @@ bool try_move_player(internal::Map &map, int dx, int dy)
         return true;
     }
 
-    if (next_object->second.view().manipulation_level == core::Object::ManipulationLevel::None)
-        return false;
+    std::vector<Location> objects_to_push;
+    Location pushed = next;
+    auto object = map.objects.find(pushed);
+    while (object != map.objects.end())
+    {
+        if (object->second.view().manipulation_level ==
+            core::Object::ManipulationLevel::None)
+            return false;
 
-    const Location pushed{next.x + dx, next.y + dy};
-    if (map.objects.contains(pushed))
-        return false;
+        objects_to_push.push_back(pushed);
+        pushed = {pushed.x + dx, pushed.y + dy};
+        object = map.objects.find(pushed);
+    }
 
-    map.objects.insert_or_assign(pushed, next_object->second);
-    map.objects.erase(next_object);
+    for (auto location = objects_to_push.rbegin(); location != objects_to_push.rend(); ++location)
+    {
+        const Location destination{location->x + dx, location->y + dy};
+        auto object = map.objects.find(*location);
+        map.objects.insert_or_assign(destination, object->second);
+        map.objects.erase(object);
+    }
+
     map.player = moved_player;
     map.player->player.location = core::Location{.x = next.x, .y = next.y};
     return true;

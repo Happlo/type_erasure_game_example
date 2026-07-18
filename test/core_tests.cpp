@@ -136,6 +136,49 @@ TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
     EXPECT_EQ(symbol_at(game->view(), 3, 5), '4');
 }
 
+TEST(CoreGameTest, GivenSeveralPushableTilesInARowWhenMovingIntoThemThenAllArePushed)
+{
+    // Given
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('1', ManipulationLevel::Push))
+        .add_object(location(2, 0), object('+', ManipulationLevel::Push))
+        .add_object(location(3, 0), object('2', ManipulationLevel::Push));
+    std::unique_ptr<core::Game> game = map->create_game();
+
+    // When
+    game->apply_event(core::Event::MoveRight);
+
+    // Then
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, location(1, 0));
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 2, 0), '1');
+    EXPECT_EQ(symbol_at(game->view(), 3, 0), '+');
+    EXPECT_EQ(symbol_at(game->view(), 4, 0), '2');
+}
+
+TEST(CoreGameTest, GivenPushableTilesBlockedByFixedTileWhenMovingThenNothingMoves)
+{
+    // Given
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
+    map->add_object(location(0, 0), object('>'))
+        .add_object(location(1, 0), object('1', ManipulationLevel::Push))
+        .add_object(location(2, 0), object('+', ManipulationLevel::Push))
+        .add_object(location(3, 0), object('#'));
+    std::unique_ptr<core::Game> game = map->create_game();
+
+    // When
+    game->apply_event(core::Event::MoveRight);
+
+    // Then
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, location(0, 0));
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), '1');
+    EXPECT_EQ(symbol_at(game->view(), 2, 0), '+');
+    EXPECT_EQ(symbol_at(game->view(), 3, 0), '#');
+}
+
 TEST(CoreGameTest, pickable_item_can_be_picked_up)
 {
     // Given
@@ -374,6 +417,45 @@ TEST(LoginViewTest, GivenUserCreatesAndSavesMapThenMapIsStoredUnderUserDirectory
     EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
     EXPECT_EQ(symbol_at(game->view(), 1, 0), '=');
     EXPECT_EQ(symbol_at(game->view(), 2, 0), '0');
+}
+
+TEST(LoginViewTest, GivenMapsFromOtherUsersWhenLoggedInThenAllMapsAreAvailable)
+{
+    // Given
+    const std::filesystem::path root = make_login_test_root();
+    CurrentPathGuard current_path(root);
+    std::filesystem::create_directories(root / "maps" / "eve");
+    std::filesystem::create_directories(root / "maps" / "frank");
+
+    std::unique_ptr<core::MapBuilder> global_map = core::MapBuilder::create();
+    global_map->add_object(location(0, 0), object('>'));
+    global_map->save_to_file(root / "maps" / "zero.json");
+
+    std::unique_ptr<core::MapBuilder> own_map = core::MapBuilder::create();
+    own_map->add_object(location(0, 0), object('>'));
+    own_map->save_to_file(root / "maps" / "eve" / "custom.json");
+
+    std::unique_ptr<core::MapBuilder> other_map = core::MapBuilder::create();
+    other_map->add_object(location(0, 0), object('>'));
+    other_map->save_to_file(root / "maps" / "frank" / "shared.json");
+
+    std::unique_ptr<core::LoginView> login = core::LoginView::create();
+    core::User &user = login->create_user("eve");
+
+    // When
+    const auto &maps = user.available_maps();
+
+    // Then
+    ASSERT_EQ(maps.size(), 3U);
+    const auto has_map = [&](const std::string &map_id, const std::string &display_name) {
+        return std::any_of(maps.begin(), maps.end(), [&](const core::MapEntry &entry) {
+            return entry.map_id == map_id && entry.display_name == display_name;
+        });
+    };
+    EXPECT_TRUE(has_map("eve/custom", "custom"));
+    EXPECT_TRUE(has_map("frank/shared", "frank/shared"));
+    EXPECT_TRUE(has_map("zero", "zero"));
+    EXPECT_TRUE(static_cast<bool>(user.select_map("frank/shared")));
 }
 
 TEST(MapBuilderTest, GivenMapWithoutPlayerWhenLoadingIntoBuilderThenParsingSucceeds)
