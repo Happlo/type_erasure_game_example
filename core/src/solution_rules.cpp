@@ -131,31 +131,21 @@ std::optional<int> evaluate_expression(std::string_view text,
     return value;
 }
 
-std::string strip_space(const std::string &text)
-{
-    std::string compact;
-    compact.reserve(text.size());
-    std::copy_if(text.begin(), text.end(), std::back_inserter(compact),
-                 [](char ch) { return !std::isspace(static_cast<unsigned char>(ch)); });
-    return compact;
-}
-
 bool assignment_is_correct(const std::string &assignment,
                            const std::unordered_map<char, int> &variables = {})
 {
-    const std::string compact = strip_space(assignment);
-
-    if (compact.empty())
+    if (assignment.empty())
         return false;
 
-    const size_t colon_pos = compact.find(':');
+    const size_t colon_pos = assignment.find(':');
     if (colon_pos == std::string::npos)
         return false;
-    if (compact.find(':', colon_pos + 1) != std::string::npos)
+    if (assignment.find(':', colon_pos + 1) != std::string::npos)
         return false;
 
-    const std::string_view lhs(compact.data(), colon_pos);
-    const std::string_view rhs(compact.data() + colon_pos + 1, compact.size() - colon_pos - 1);
+    const std::string_view lhs(assignment.data(), colon_pos);
+    const std::string_view rhs(assignment.data() + colon_pos + 1,
+                               assignment.size() - colon_pos - 1);
 
     if (lhs.empty() || rhs.empty())
         return false;
@@ -173,25 +163,24 @@ bool assignment_is_correct(const std::string &assignment,
 bool equation_is_correct(const std::string &equation,
                          const std::unordered_map<char, int> &variables = {})
 {
-    const std::string compact = strip_space(equation);
-
-    if (compact.empty())
+    if (equation.empty())
         return false;
 
-    if (!std::all_of(compact.begin(), compact.end(), [&](char ch) {
+    if (!std::all_of(equation.begin(), equation.end(), [&](char ch) {
             return std::isdigit(static_cast<unsigned char>(ch)) || ch == '=' || is_operator(ch) ||
                    is_assignable_symbol(ch);
         }))
         return false;
 
-    const size_t equals_pos = compact.find('=');
+    const size_t equals_pos = equation.find('=');
     if (equals_pos == std::string::npos)
         return false;
-    if (compact.find('=', equals_pos + 1) != std::string::npos)
+    if (equation.find('=', equals_pos + 1) != std::string::npos)
         return false;
 
-    const std::string_view lhs(compact.data(), equals_pos);
-    const std::string_view rhs(compact.data() + equals_pos + 1, compact.size() - equals_pos - 1);
+    const std::string_view lhs(equation.data(), equals_pos);
+    const std::string_view rhs(equation.data() + equals_pos + 1,
+                               equation.size() - equals_pos - 1);
     if (lhs.empty() || rhs.empty())
         return false;
 
@@ -205,14 +194,13 @@ bool equation_is_correct(const std::string &equation,
 
 std::vector<std::string> split_segments(std::string_view line)
 {
-    const std::string compact = strip_space(std::string(line));
     std::vector<std::string> segments;
     size_t pos = 0;
-    while (pos <= compact.size())
+    while (pos <= line.size())
     {
-        size_t end = compact.find('#', pos);
-        segments.push_back(compact.substr(pos, end - pos));
-        if (end == std::string::npos)
+        size_t end = line.find_first_of("# ", pos);
+        segments.emplace_back(line.substr(pos, end - pos));
+        if (end == std::string_view::npos)
             break;
         pos = end + 1;
     }
@@ -265,7 +253,7 @@ collect_equal_sign_status(const std::vector<std::string> &lines,
 
         while (segment_start <= line.size())
         {
-            const std::size_t delimiter_pos = line.find('#', segment_start);
+            const std::size_t delimiter_pos = line.find_first_of("# ", segment_start);
             const std::size_t segment_end =
                 delimiter_pos == std::string::npos ? line.size() : delimiter_pos;
             const std::string_view segment(line.data() + segment_start,
