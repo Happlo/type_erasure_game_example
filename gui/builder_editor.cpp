@@ -122,7 +122,6 @@ void select_cell(BuilderEditorState &state, const int x, const int y)
     if (object == view.objects.end())
     {
         state.object.symbol = '*';
-        state.object.manipulation_level = core::Object::ManipulationLevel::None;
         sync_symbol_buffer(state);
         return;
     }
