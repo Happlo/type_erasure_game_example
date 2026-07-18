@@ -395,7 +395,7 @@ void draw_try_tools_window(BuilderEditorState &state, const core::MapView &view)
     gui::draw_game_sidebar_state(state.try_game, view);
 
     ImGui::Spacing();
-    gui::draw_game_action_controls(state.try_game);
+    gui::draw_game_controls_info();
 
     ImGui::Spacing();
     if (ImGui::Button("Back To Builder", scaled(ImVec2(310.0f, 38.0f))))

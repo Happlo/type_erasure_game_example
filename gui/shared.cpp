@@ -95,8 +95,6 @@ int display_width(const DisplayBounds& bounds) { return bounds.max.x - bounds.mi
 
 int display_height(const DisplayBounds& bounds) { return bounds.max.y - bounds.min.y + 1; }
 
-constexpr ImVec2 kMoveButtonSize{96.0f, 36.0f};
-constexpr ImVec2 kActionButtonSize{150.0f, 38.0f};
 constexpr int kVisibleTilesPerAxis = 13;
 constexpr int kVisibleTileRadius = kVisibleTilesPerAxis / 2;
 
@@ -266,15 +264,13 @@ void handle_game_keyboard(GamePlayState& state)
         core::Event event;
     };
 
-    constexpr std::array<KeyBinding, 8> bindings{{
+    constexpr std::array<KeyBinding, 6> bindings{{
         {ImGuiKey_W, ImGuiKey_UpArrow, core::Event::MoveUp},
         {ImGuiKey_A, ImGuiKey_LeftArrow, core::Event::MoveLeft},
         {ImGuiKey_S, ImGuiKey_DownArrow, core::Event::MoveDown},
         {ImGuiKey_D, ImGuiKey_RightArrow, core::Event::MoveRight},
         {ImGuiKey_E, ImGuiKey_None, core::Event::PickItem},
         {ImGuiKey_Q, ImGuiKey_None, core::Event::DropItem},
-        {ImGuiKey_C, ImGuiKey_None, core::Event::Commit},
-        {ImGuiKey_U, ImGuiKey_None, core::Event::Undo},
     }};
 
     for (const auto& binding : bindings)
@@ -285,14 +281,6 @@ void handle_game_keyboard(GamePlayState& state)
             trigger_game_event(state, binding.event);
         }
     }
-}
-
-bool game_action_button(const char* label, const ImVec2 size, GamePlayState& state,
-                        const core::Event event)
-{
-    if (!ImGui::Button(label, size))
-        return false;
-    return trigger_game_event(state, event);
 }
 
 void draw_game_status(const GamePlayState& state)
@@ -309,45 +297,22 @@ void draw_game_status(const GamePlayState& state)
         ImGui::TextWrapped("Solved. Load another map or reset to play again.");
         ImGui::PopStyleColor();
     }
-    else
-    {
-        ImGui::TextWrapped(
-            "Controls: WASD or arrow keys move. E picks up, Q drops, C commits, U undoes.");
-    }
     ImGui::TextWrapped("%s", state.status.c_str());
-}
-
-void draw_game_map_stats(const core::MapView& view)
-{
-    ImGui::Text("Map commits: %d", view.commits_left);
-    ImGui::Text("Map undos: %d", view.undos_left);
 }
 
 void draw_game_sidebar_state(const GamePlayState& state, const core::MapView& view)
 {
-    draw_game_map_stats(view);
     draw_game_inventory(view);
     draw_game_variables(state.equation_result);
     draw_game_assignment_feedback(state);
 }
 
-void draw_game_action_controls(GamePlayState& state)
+void draw_game_controls_info()
 {
-    ImGui::TextUnformatted("Movement");
-    game_action_button("Up", scaled(kMoveButtonSize), state, core::Event::MoveUp);
-    game_action_button("Left", scaled(kMoveButtonSize), state, core::Event::MoveLeft);
-    ImGui::SameLine();
-    game_action_button("Down", scaled(kMoveButtonSize), state, core::Event::MoveDown);
-    ImGui::SameLine();
-    game_action_button("Right", scaled(kMoveButtonSize), state, core::Event::MoveRight);
-
-    ImGui::Spacing();
-    game_action_button("Pick  [E]", scaled(kActionButtonSize), state, core::Event::PickItem);
-    ImGui::SameLine();
-    game_action_button("Drop  [Q]", scaled(kActionButtonSize), state, core::Event::DropItem);
-    game_action_button("Commit  [C]", scaled(kActionButtonSize), state, core::Event::Commit);
-    ImGui::SameLine();
-    game_action_button("Undo  [U]", scaled(kActionButtonSize), state, core::Event::Undo);
+    ImGui::TextUnformatted("Controls");
+    ImGui::TextWrapped("Move: WASD or arrow keys");
+    ImGui::TextWrapped("Pick up: E");
+    ImGui::TextWrapped("Drop: Q");
 }
 
 void draw_game_variables(const std::optional<core::GameResult>& result)

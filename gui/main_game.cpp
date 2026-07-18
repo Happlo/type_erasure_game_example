@@ -215,7 +215,7 @@ void draw_control_window(AppState &app, const core::MapView &view)
     gui::draw_game_sidebar_state(app.play, view);
 
     ImGui::Spacing();
-    gui::draw_game_action_controls(app.play);
+    gui::draw_game_controls_info();
 
     ImGui::Spacing();
     if (ImGui::Button("Back To Login  [R]", gui::scaled(kResetButtonSize)))
