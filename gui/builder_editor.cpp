@@ -137,12 +137,7 @@ void move_selection(BuilderEditorState &state, const int dx, const int dy)
         return;
     }
 
-    const Viewport viewport = viewport_for(state);
-    const int next_x = std::clamp(state.selected_cell->x + dx, viewport.min.x,
-                                  viewport.min.x + viewport.width - 1);
-    const int next_y = std::clamp(state.selected_cell->y + dy, viewport.min.y,
-                                  viewport.min.y + viewport.height - 1);
-    select_cell(state, next_x, next_y);
+    select_cell(state, state.selected_cell->x + dx, state.selected_cell->y + dy);
 }
 
 void load_map(BuilderEditorState &state)
@@ -228,7 +223,8 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
     ImGui::TextUnformatted("Type Erasure Builder");
     ImGui::Separator();
     ImGui::TextWrapped(
-        "Left click selects a cell. Typing places a symbol. Right click clears and selects.");
+        "Left click selects a cell. Typing places a symbol. Arrow keys beyond an edge expand "
+        "the map. Right click clears and selects.");
 
     ImGui::Spacing();
     ImGui::Separator();
