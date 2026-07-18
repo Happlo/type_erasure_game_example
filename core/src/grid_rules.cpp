@@ -109,29 +109,12 @@ bool try_drop_item(internal::Map &map)
     return true;
 }
 
-bool map_commit(internal::History &history)
-{
-    auto &map = internal::current(history);
-    if (map.commits_left <= 0)
-        return false;
-
-    const int commits_after = map.commits_left - 1;
-    internal::commit(history);
-    internal::current(history).commits_left = commits_after;
-    return true;
-}
-
 bool map_undo(internal::History &history)
 {
-    auto &map = internal::current(history);
-    if (map.undos_left <= 0)
-        return false;
     if (history.size() <= 1)
         return false;
 
-    const int undos_after = map.undos_left - 1;
     internal::undo(history);
-    internal::current(history).undos_left = undos_after;
     return true;
 }
 } // namespace core::grid_rules

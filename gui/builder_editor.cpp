@@ -230,15 +230,7 @@ bool draw_tools_window(BuilderEditorState &state, const bool show_back_button)
     ImGui::TextUnformatted("Type Erasure Builder");
     ImGui::Separator();
     ImGui::TextWrapped(
-        "Left click selects a cell. Typing commits a symbol. Right click clears and selects.");
-
-    ImGui::Spacing();
-    int commits_left = state.map->view().commits_left;
-    int undos_left = state.map->view().undos_left;
-    if (ImGui::InputInt("Commits", &commits_left))
-        state.map->set_commits_left(commits_left);
-    if (ImGui::InputInt("Undos", &undos_left))
-        state.map->set_undos_left(undos_left);
+        "Left click selects a cell. Typing places a symbol. Right click clears and selects.");
 
     ImGui::Spacing();
     ImGui::Separator();

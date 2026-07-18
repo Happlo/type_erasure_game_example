@@ -75,7 +75,7 @@ struct Map
 
 using History = std::vector<Map>;
 
-void commit(History &history);
+void commit(History &history, Map state);
 
 void undo(History &history);
 

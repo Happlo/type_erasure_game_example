@@ -16,7 +16,6 @@ enum class Event
     MoveRight,
     PickItem,
     DropItem,
-    Commit,
     Undo
 };
 

@@ -74,6 +74,28 @@ GameResult evaluate_map(const internal::Map& map)
     return result;
 }
 
+GameResult previous_state(internal::History& history)
+{
+    grid_rules::map_undo(history);
+    return evaluate_map(internal::current(history));
+}
+
+bool try_apply_action(internal::Map& map, const Event event)
+{
+    switch (event)
+    {
+        case Event::MoveUp: return grid_rules::try_move_player(map, 0, -1);
+        case Event::MoveLeft: return grid_rules::try_move_player(map, -1, 0);
+        case Event::MoveDown: return grid_rules::try_move_player(map, 0, 1);
+        case Event::MoveRight: return grid_rules::try_move_player(map, 1, 0);
+        case Event::PickItem: return grid_rules::try_pick_item(map);
+        case Event::DropItem: return grid_rules::try_drop_item(map);
+        case Event::Undo: return false;
+    }
+
+    return false;
+}
+
 class DefaultGame final : public Game
 {
 public:
@@ -82,23 +104,12 @@ public:
 
     GameResult apply_event(const Event event) override
     {
-        auto& map = internal::current(history_);
-        [&]()
-        {
-        switch (event)
-        {
-            case Event::MoveUp: return grid_rules::try_move_player(map, 0, -1);
-            case Event::MoveLeft: return grid_rules::try_move_player(map, -1, 0);
-            case Event::MoveDown: return grid_rules::try_move_player(map, 0, 1);
-            case Event::MoveRight: return grid_rules::try_move_player(map, 1, 0);
-            case Event::PickItem: return grid_rules::try_pick_item(map);
-            case Event::DropItem: return grid_rules::try_drop_item(map);
-            case Event::Commit: return grid_rules::map_commit(history_);
-            case Event::Undo: return grid_rules::map_undo(history_);
-        }
+        if (event == Event::Undo)
+            return last_result_ = previous_state(history_);
 
-        return false;
-        }();
+        internal::Map next = internal::current(history_);
+        if (try_apply_action(next, event))
+            internal::commit(history_, std::move(next));
 
         last_result_ = evaluate_map(internal::current(history_));
         return last_result_;

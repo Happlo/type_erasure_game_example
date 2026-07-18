@@ -4,10 +4,10 @@
 
 namespace core::internal
 {
-void commit(History &history)
+void commit(History &history, Map state)
 {
     assert(!history.empty());
-    history.push_back(history.back());
+    history.push_back(std::move(state));
 }
 
 void undo(History &history)

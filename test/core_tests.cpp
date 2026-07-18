@@ -97,21 +97,21 @@ TEST(CoreGameTest, GivenPlayerAtStartWhenMoveRightThenMoveIsLegalAndFacingUpdate
     EXPECT_EQ(symbol_at(game->view(), 1, 6), ' ');
 }
 
-TEST(CoreGameTest, GivenCommittedSnapshotWhenUndoThenUndoCounterDecrements)
+TEST(CoreGameTest, GivenSuccessfulActionWhenUndoThenPreviousStateIsRestored)
 {
     // Given
     std::unique_ptr<core::Game> game = create_reference_game();
-    EXPECT_EQ(game->view().commits_left, 6);
-    game->apply_event(core::Event::Commit);
-    EXPECT_EQ(game->view().commits_left, 5);
-    EXPECT_EQ(game->view().undos_left, 6);
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, location(0, 6));
+    game->apply_event(core::Event::MoveRight);
+    EXPECT_EQ(game->view().player->location, location(1, 6));
 
     // When
     game->apply_event(core::Event::Undo);
 
     // Then
-    EXPECT_EQ(game->view().commits_left, 6);
-    EXPECT_EQ(game->view().undos_left, 5);
+    ASSERT_TRUE(game->view().player.has_value());
+    EXPECT_EQ(game->view().player->location, location(0, 6));
 }
 
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)

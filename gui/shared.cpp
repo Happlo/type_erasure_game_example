@@ -237,11 +237,8 @@ bool trigger_game_event(GamePlayState& state, const core::Event event)
     case core::Event::DropItem:
         state.status = "Dropped item.";
         break;
-    case core::Event::Commit:
-        state.status = "Committed map state.";
-        break;
     case core::Event::Undo:
-        state.status = "Restored previous commit.";
+        state.status = "Undid previous action.";
         break;
     }
 
@@ -256,6 +253,12 @@ void handle_game_keyboard(GamePlayState& state)
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureKeyboard)
         return;
+
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+    {
+        trigger_game_event(state, core::Event::Undo);
+        return;
+    }
 
     struct KeyBinding
     {
@@ -313,6 +316,7 @@ void draw_game_controls_info()
     ImGui::TextWrapped("Move: WASD or arrow keys");
     ImGui::TextWrapped("Pick up: E");
     ImGui::TextWrapped("Drop: Q");
+    ImGui::TextWrapped("Undo: Ctrl+Z");
 }
 
 void draw_game_variables(const std::optional<core::GameResult>& result)
