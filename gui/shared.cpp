@@ -40,14 +40,10 @@ std::string describe_new_assignments(const core::GameResult& before,
     return out;
 }
 
-bool tile_has_equal_status(const core::GameResult& result, const int x, const int y,
-                           core::EqualityStatus& status)
+bool is_remaining_equal_sign(const core::GameResult& result, const int x, const int y)
 {
-    const auto it = result.equal_sign_status.find(core::Location{x, y});
-    if (it == result.equal_sign_status.end())
-        return false;
-    status = it->second;
-    return true;
+    return std::find(result.remaining_equal_signs.begin(), result.remaining_equal_signs.end(),
+                     core::Location{x, y}) != result.remaining_equal_signs.end();
 }
 
 struct GridRenderContext
@@ -184,9 +180,7 @@ void apply_style()
 
 bool game_is_solved(const core::GameResult& result)
 {
-    return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
-                       [](const auto& entry)
-                       { return entry.second == core::EqualityStatus::Equal; });
+    return result.solved();
 }
 
 void start_game(GamePlayState& state, std::unique_ptr<core::Game> game, std::string status)
@@ -194,6 +188,7 @@ void start_game(GamePlayState& state, std::unique_ptr<core::Game> game, std::str
     state.game = std::move(game);
     state.equation_result.reset();
     state.assignment_feedback.clear();
+    state.removed_tiles.clear();
     state.status = std::move(status);
 }
 
@@ -202,6 +197,7 @@ void clear_game(GamePlayState& state, std::string status)
     state.game.reset();
     state.equation_result.reset();
     state.assignment_feedback.clear();
+    state.removed_tiles.clear();
     state.status = std::move(status);
 }
 
@@ -214,6 +210,15 @@ bool trigger_game_event(GamePlayState& state, const core::Event event)
         state.equation_result.value_or(core::GameResult{});
     state.equation_result = state.game->apply_event(event);
     state.assignment_feedback = describe_new_assignments(previous_result, *state.equation_result);
+    if (!state.equation_result->removed_objects.empty())
+    {
+        state.removed_tiles = state.equation_result->removed_objects;
+        state.removed_tiles_at = ImGui::GetTime();
+    }
+    else if (event == core::Event::Undo)
+    {
+        state.removed_tiles.clear();
+    }
 
     if (game_is_solved(*state.equation_result))
     {
@@ -425,17 +430,9 @@ void draw_game_tile(const GridRenderContext& ctx, const core::Object* object, co
     const core::Location location{.x = ctx.min_location.x + x, .y = ctx.min_location.y + y};
     if (object != nullptr && object->symbol == '=' && ctx.equation_result != nullptr)
     {
-        core::EqualityStatus equality_status;
-        if (tile_has_equal_status(*ctx.equation_result, location.x, location.y, equality_status))
+        if (is_remaining_equal_sign(*ctx.equation_result, location.x, location.y))
         {
-            if (equality_status == core::EqualityStatus::Equal)
-            {
-                outline = palette::correct_equation;
-            }
-            else
-            {
-                outline = palette::incorrect_equation;
-            }
+            outline = palette::incorrect_equation;
             thickness = scaled(3.0f);
         }
     }
@@ -488,7 +485,8 @@ void draw_game_grid_background(ImDrawList& draw_list, const ImVec2 origin, const
                       scaled(10.0f));
 }
 
-void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result)
+void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result,
+                    const GamePlayState* state)
 {
     const bool solved = result.has_value() && game_is_solved(*result);
     const DisplayBounds bounds = visible_display_bounds(view);
@@ -513,6 +511,38 @@ void draw_game_grid(const core::MapView& view, const std::optional<core::GameRes
             const auto object = view.objects.find(
                 core::Location{.x = bounds.min.x + x, .y = bounds.min.y + y});
             draw_game_tile(ctx, object == view.objects.end() ? nullptr : &object->second, x, y);
+        }
+    }
+    constexpr double kRemovalEffectDuration = 0.7;
+    if (state != nullptr && !state->removed_tiles.empty())
+    {
+        const float progress = static_cast<float>(
+            std::clamp((ImGui::GetTime() - state->removed_tiles_at) / kRemovalEffectDuration,
+                       0.0, 1.0));
+        if (progress < 1.0f)
+        {
+            const ImU32 alpha = static_cast<ImU32>(255.0f * (1.0f - progress));
+            const auto with_alpha = [alpha](const ImU32 color) {
+                return (color & IM_COL32(255, 255, 255, 0)) | (alpha << IM_COL32_A_SHIFT);
+            };
+            for (const auto& [location, object] : state->removed_tiles)
+            {
+                const int x = location.x - bounds.min.x;
+                const int y = location.y - bounds.min.y;
+                if (x < 0 || x >= width || y < 0 || y >= height)
+                    continue;
+
+                const ImVec2 center(origin.x + (x + 0.5f) * tile_size,
+                                    origin.y + (y + 0.5f) * tile_size);
+                const float half_size = (tile_size - scaled(4.0f)) * 0.5f *
+                                        (1.0f - 0.25f * progress);
+                const ImVec2 tile_min(center.x - half_size, center.y - half_size);
+                const ImVec2 tile_max(center.x + half_size, center.y + half_size);
+                draw_list->AddRectFilled(tile_min, tile_max, with_alpha(object_tile_fill(object)),
+                                         scaled(12.0f));
+                draw_tile_symbol(*draw_list, tile_min, tile_max, object.symbol,
+                                 tile_size * 0.58f, with_alpha(palette::tile_symbol));
+            }
         }
     }
     if (view.player.has_value())

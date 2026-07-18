@@ -39,6 +39,8 @@ struct GamePlayState
     std::optional<core::GameResult> equation_result;
     std::string status{"Ready."};
     std::string assignment_feedback;
+    std::map<core::Location, core::Object> removed_tiles;
+    double removed_tiles_at{0.0};
 };
 
 void apply_style();
@@ -57,7 +59,8 @@ void draw_game_controls_info();
 void draw_game_variables(const std::optional<core::GameResult>& result);
 void draw_game_assignment_feedback(const GamePlayState& state);
 void draw_game_inventory(const core::MapView& view);
-void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result);
+void draw_game_grid(const core::MapView& view, const std::optional<core::GameResult>& result,
+                    const GamePlayState* state = nullptr);
 
 ImU32 empty_tile_fill();
 ImU32 object_tile_fill(const core::Object& object);

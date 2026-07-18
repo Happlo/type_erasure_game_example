@@ -114,6 +114,32 @@ TEST(CoreGameTest, GivenSuccessfulActionWhenUndoThenPreviousStateIsRestored)
     EXPECT_EQ(game->view().player->location, location(0, 6));
 }
 
+TEST(CoreGameTest, GivenSolvedEquationAndAssignmentWhenActionSucceedsThenOnlyEquationIsRemoved)
+{
+    // Given
+    std::unique_ptr<core::MapBuilder> map = core::MapBuilder::create();
+    map->add_object(location(0, 0), object('2'))
+        .add_object(location(1, 0), object('='))
+        .add_object(location(2, 0), object('N'))
+        .add_object(location(4, 0), object('N'))
+        .add_object(location(5, 0), object(':'))
+        .add_object(location(6, 0), object('2'))
+        .add_object(location(0, 1), object('>'));
+    std::unique_ptr<core::Game> game = map->create_game();
+
+    // When
+    const core::GameResult result = game->apply_event(core::Event::MoveRight);
+
+    // Then
+    EXPECT_TRUE(result.solved());
+    EXPECT_EQ(symbol_at(game->view(), 0, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 1, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 2, 0), ' ');
+    EXPECT_EQ(symbol_at(game->view(), 4, 0), 'N');
+    EXPECT_EQ(symbol_at(game->view(), 5, 0), ':');
+    EXPECT_EQ(symbol_at(game->view(), 6, 0), '2');
+}
+
 TEST(CoreGameTest, GivenPushableTileWhenMovingIntoItThenPushMoveIsLegal)
 {
     // Given

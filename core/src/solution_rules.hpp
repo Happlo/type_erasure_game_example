@@ -11,10 +11,23 @@
 
 namespace core::solution_rules
 {
+enum class EqualityStatus
+{
+    Equal,
+    NotEqual,
+};
+
+struct EquationResult
+{
+    std::map<char, int> resolved_variables;
+    std::map<Location, EqualityStatus> equal_sign_status;
+
+};
+
 const std::vector<char> OPERATORS{'+', '-', '*', '/', '=', ':'};
 const std::vector<char> EQUATION_DELIMITERS{'#', ' '};
 
 bool solved_equation(std::string_view grid);
 
-GameResult evaluate_equation(std::string_view grid);
+EquationResult evaluate_equation(std::string_view grid);
 } // namespace core::solution_rules

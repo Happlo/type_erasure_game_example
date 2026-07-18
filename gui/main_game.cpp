@@ -228,13 +228,12 @@ void draw_control_window(AppState &app, const core::MapView &view)
     ImGui::End();
 }
 
-void draw_board_window(const core::MapView &view,
-                       const std::optional<core::GameResult> &result)
+void draw_board_window(const core::MapView &view, const gui::GamePlayState &state)
 {
     ImGui::SetNextWindowPos(gui::scaled(kBoardWindowPos), ImGuiCond_Always);
     ImGui::SetNextWindowSize(gui::scaled(kBoardWindowSize), ImGuiCond_Always);
     ImGui::Begin("Board", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-    gui::draw_game_grid(view, result);
+    gui::draw_game_grid(view, state.equation_result, &state);
     ImGui::End();
 }
 
@@ -424,7 +423,7 @@ void draw_frame(GLFWwindow *window, AppState &app)
         const core::MapView view = app.play.game->view();
         draw_control_window(app, view);
         if (app.play.game)
-            draw_board_window(view, app.play.equation_result);
+            draw_board_window(view, app.play);
     }
     else
     {

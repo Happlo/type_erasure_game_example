@@ -25,8 +25,7 @@ constexpr std::string_view kMapsDirectory = "maps";
 
 bool is_solved(const GameResult &result)
 {
-    return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
-                       [](const auto &entry) { return entry.second == EqualityStatus::Equal; });
+    return result.solved();
 }
 
 fs::path users_directory() { return fs::path(kUsersDirectory); }

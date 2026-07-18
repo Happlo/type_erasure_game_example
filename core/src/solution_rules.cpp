@@ -245,7 +245,6 @@ collect_equal_sign_status(const std::vector<std::string> &lines,
                           const std::unordered_map<char, int> &variables)
 {
     std::map<Location, EqualityStatus> equal_sign_status;
-
     for (int y = 0; y < static_cast<int>(lines.size()); ++y)
     {
         const std::string &line = lines[static_cast<size_t>(y)];
@@ -278,9 +277,9 @@ collect_equal_sign_status(const std::vector<std::string> &lines,
 
 } // namespace
 
-GameResult evaluate_equation(const std::string_view grid_text)
+EquationResult evaluate_equation(const std::string_view grid_text)
 {
-    GameResult result;
+    EquationResult result;
     std::unordered_map<char, int> global_variables;
     std::vector<std::string> pending_assignment_segments;
     std::vector<std::string> lines;
@@ -325,7 +324,7 @@ GameResult evaluate_equation(const std::string_view grid_text)
 
 bool solved_equation(const std::string_view grid_text)
 {
-    const GameResult result = evaluate_equation(grid_text);
+    const EquationResult result = evaluate_equation(grid_text);
     return std::any_of(result.equal_sign_status.begin(), result.equal_sign_status.end(),
                        [](const auto &entry) { return entry.second == EqualityStatus::Equal; });
 }

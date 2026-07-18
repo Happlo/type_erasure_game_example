@@ -398,7 +398,7 @@ void draw_try_canvas_window(const GamePlayState &try_game, const core::MapView &
     ImGui::SetNextWindowPos(scaled(kCanvasWindowPos), ImGuiCond_Always);
     ImGui::SetNextWindowSize(scaled(kCanvasWindowSize), ImGuiCond_Always);
     ImGui::Begin("Playtest", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-    gui::draw_game_grid(view, try_game.equation_result);
+    gui::draw_game_grid(view, try_game.equation_result, &try_game);
     ImGui::End();
 }
 } // namespace

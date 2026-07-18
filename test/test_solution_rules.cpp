@@ -16,12 +16,13 @@ struct EvaluateEquationCase
 {
     std::string grid;
     std::map<char, int> resolved_variables;
-    std::map<core::Location, core::EqualityStatus> equal_sign_status;
+    std::map<core::Location, core::solution_rules::EqualityStatus> equal_sign_status;
 };
 
 void expect_evaluate_equation_result(const EvaluateEquationCase &test_case)
 {
-    const core::GameResult result = core::solution_rules::evaluate_equation(test_case.grid);
+    const core::solution_rules::EquationResult result =
+        core::solution_rules::evaluate_equation(test_case.grid);
 
     EXPECT_EQ(result.resolved_variables, test_case.resolved_variables);
     EXPECT_EQ(result.equal_sign_status, test_case.equal_sign_status);
@@ -55,22 +56,22 @@ TEST(EvaluateEquationTest, ReturnsExpectedResults)
                     "x:2\n"
                     "y:3\n",
             .resolved_variables = {{'x', 2}, {'y', 3}},
-            .equal_sign_status = {{{3, 0}, core::EqualityStatus::Equal},
-                                  {{9, 0}, core::EqualityStatus::NotEqual}},
+            .equal_sign_status = {{{3, 0}, core::solution_rules::EqualityStatus::Equal},
+                                  {{9, 0}, core::solution_rules::EqualityStatus::NotEqual}},
         },
         EvaluateEquationCase{
             .grid = "x+y=5#7-3=4\n"
                     "x:2\n"
                     "y:x+1\n",
             .resolved_variables = {{'x', 2}, {'y', 3}},
-            .equal_sign_status = {{{3, 0}, core::EqualityStatus::Equal},
-                                  {{9, 0}, core::EqualityStatus::Equal}},
+            .equal_sign_status = {{{3, 0}, core::solution_rules::EqualityStatus::Equal},
+                                  {{9, 0}, core::solution_rules::EqualityStatus::Equal}},
         },
         EvaluateEquationCase{
             .grid = "2+x=2*x\n"
                     "x:2\n",
             .resolved_variables = {{'x', 2}},
-            .equal_sign_status = {{{3, 0}, core::EqualityStatus::Equal}},
+            .equal_sign_status = {{{3, 0}, core::solution_rules::EqualityStatus::Equal}},
         },
     };
 
